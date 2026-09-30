@@ -138,7 +138,21 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
             return null;
         },"successful login",45);
         Click(login,"ใช้ Session นี้");
-        Wait(()=>Native.FindWindow(processId,"Login Session")==IntPtr.Zero ? main:null,"session window closes"); Front(main);
+        DateTime? readySince=null;
+        Wait(()=> {
+            var popup=Window("Success");
+            if(popup is not null) {
+                if(popup.Current.Name!="Success" || !Normalize(Text(popup)).Contains(Normalize("บันทึก Session แล้ว และโหลด Area เรียบร้อย")))
+                    throw new InvalidOperationException("Unexpected Success dialog after session. Please inspect it manually.");
+                Click(popup,"OK");
+                Wait(()=>Native.FindWindow(processId,"Success")==IntPtr.Zero?main:null,"session confirmation closes",10);
+                readySince=null;
+            }
+            if(Native.FindWindow(processId,"Login Session")!=IntPtr.Zero || !main.Current.IsEnabled) { readySince=null;return null; }
+            readySince ??=DateTime.UtcNow;
+            return DateTime.UtcNow-readySince>=TimeSpan.FromSeconds(2)?main:null;
+        },"session closes and Success / OK confirmation",45);
+        Front(main);
         stage("select_dates");
         var dates=main.FindAll(TreeScope.Descendants,Condition.TrueCondition).Cast<AutomationElement>().Where(e=>e.Current.ClassName.Contains("SysDateTimePick32") && e.Current.NativeWindowHandle!=0).OrderBy(e=>e.Current.BoundingRectangle.Left).ToArray();
         if(dates.Length!=2) throw new InvalidOperationException("Expected two native date pickers. Run Diagnostics to inspect this program version.");

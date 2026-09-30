@@ -38,6 +38,8 @@ internal sealed class DemoTarget:Forms.Form {
             };
             use.Click+=(_,_)=> { session=true; dialog.Close(); };
             dialog.ShowDialog(this);
+            if(session && Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_NO_SESSION_POPUP")!="1")
+                Forms.MessageBox.Show(this,"บันทึก Session แล้ว และโหลด Area เรียบร้อย","Success",Forms.MessageBoxButtons.OK,Forms.MessageBoxIcon.Information);
         };
         download.Click+=async(_,_)=> {
             if(!session) { output.Text="Please log in and use the session first."; return; }
