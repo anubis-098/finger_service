@@ -14,12 +14,16 @@ internal sealed class TrayApp : Forms.ApplicationContext {
     private readonly Forms.Timer updateTimer=new() {Interval=12*60*60*1000};
     private readonly Forms.ToolStripMenuItem checkUpdate=new("Check updates");
     private Process? worker;
+    private CancellationTokenSource? activeTask;
+    private TaskProgressForm? progress;
+    private readonly Forms.ToolStripMenuItem cancelTask=new("Cancel current task") {Enabled=false};
     private Settings settings=Settings.Load();
     public TrayApp() {
         tray=new Forms.NotifyIcon { Icon=SystemIcons.Application, Text="CJ Finger Service · 30 min", Visible=true };
         var menu=new Forms.ContextMenuStrip(); status.Enabled=false;
         menu.Items.Add(status); menu.Items.Add(new Forms.ToolStripSeparator()); menu.Items.Add(pause);
         menu.Items.Add("Settings",null,(_,_)=>OpenSettings());
+        menu.Items.Add(cancelTask);cancelTask.Click+=(_,_)=>CancelActive();
         menu.Items.Add(new Forms.ToolStripMenuItem("Version "+Updater.VersionText) {Enabled=false});
         menu.Items.Add(checkUpdate); checkUpdate.Click+=async(_,_)=>await CheckUpdates(true);
         updateTimer.Tick+=async(_,_)=>await CheckUpdates(false); updateTimer.Start();
@@ -75,6 +79,9 @@ internal sealed class TrayApp : Forms.ApplicationContext {
         if(running || updating) return;
         Log(uploadOnly?"TASK START upload retry":"TASK START scheduled export");
         timer.Stop(); running=true; next=DateTimeOffset.Now.AddMinutes(30); UpdateStatus("Running");
+        activeTask=new CancellationTokenSource();cancelTask.Enabled=true;
+        var stagePath=Path.Combine(Settings.Root,"worker-stage.txt");File.WriteAllText(stagePath,"Starting...");
+        progress=new TaskProgressForm(()=> {if(running)CancelActive();},Exit);progress.Show();
         try {
             settings=Settings.Load(); if(!uploadOnly) settings.Validate(false);
             var resultPath=Path.Combine(Settings.Root,"worker-result.json");
@@ -82,20 +89,36 @@ internal sealed class TrayApp : Forms.ApplicationContext {
             if(File.Exists(resultPath)) File.Delete(resultPath);
             var start=new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute=false,CreateNoWindow=true }; start.ArgumentList.Add(uploadOnly?"--upload-only":"--worker");
             worker=Process.Start(start)!;
-            using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(settings.DownloadTimeoutSeconds+180+ (settings.EnableUpload?480:0)));
-            try { await worker.WaitForExitAsync(timeout.Token); } catch(OperationCanceledException) { worker.Kill(true); throw new TimeoutException("Automation timeout; no further clicks will be made. Check the export program."); }
+            File.WriteAllText(Path.Combine(Settings.Root,"worker.pid"),worker.Id.ToString());
+            using var timeout=CancellationTokenSource.CreateLinkedTokenSource(activeTask.Token);
+            timeout.CancelAfter(TimeSpan.FromSeconds(settings.DownloadTimeoutSeconds*3+360+ (settings.EnableUpload?480:0)));
+            try { await worker.WaitForExitAsync(timeout.Token); } catch(OperationCanceledException) {
+                if(!worker.HasExited){worker.Kill();worker.WaitForExit(3000);}
+                if(activeTask.IsCancellationRequested)throw;
+                throw new TimeoutException("Automation timeout; worker stopped. Inspect the export application.");
+            }
             if(!File.Exists(resultPath)) throw new InvalidOperationException("Worker stopped without a result.");
             using var json=JsonDocument.Parse(File.ReadAllText(resultPath)); var message=json.RootElement.GetProperty("message").GetString()!;
             if(!json.RootElement.GetProperty("ok").GetBoolean()) throw new InvalidOperationException(message);
             Log("SUCCESS " + message + " " + json.RootElement.GetProperty("file").GetString());
             UpdateStatus(message);
             tray.ShowBalloonTip(4000,"CJ Finger Service",message,Forms.ToolTipIcon.Info);
-        } catch(Exception e) { Log("FAILED " + e.Message); UpdateStatus("Failed · " + e.Message); tray.ShowBalloonTip(5000,"CJ Finger Service",e.Message,Forms.ToolTipIcon.Warning); }
-        finally { worker?.Dispose(); worker=null; running=false; if(next<=DateTimeOffset.Now) next=DateTimeOffset.Now.AddMinutes(30); ArmTimer(); tray.Text=scheduled?$"CJ Finger Service · next {next:HH:mm}":"CJ Finger Service · stopped"; }
+        } catch(OperationCanceledException) {Log("CANCELLED by user");if(!exiting)UpdateStatus("Cancelled - schedule stopped");}
+        catch(Exception e) { Log("FAILED " + e.Message); if(!exiting){UpdateStatus("Failed · " + e.Message); tray.ShowBalloonTip(5000,"CJ Finger Service",e.Message,Forms.ToolTipIcon.Warning);} }
+        finally {
+            worker?.Dispose(); worker=null; running=false;activeTask?.Dispose();activeTask=null;
+            progress?.Close();progress?.Dispose();progress=null;
+            if(!exiting){cancelTask.Enabled=false;if(next<=DateTimeOffset.Now) next=DateTimeOffset.Now.AddMinutes(30);ArmTimer();tray.Text=scheduled?$"CJ Finger Service · next {next:HH:mm}":"CJ Finger Service · stopped";}
+        }
+    }
+    private void CancelActive() {
+        if(!running)return;
+        scheduled=false;timer.Stop();activeTask?.Cancel();cancelTask.Enabled=false;
+        UpdateStatus("Cancelling - schedule stopped");
     }
     private void OpenSettings() {
         if(updating) return;
-        if(running) { tray.ShowBalloonTip(3000,"CJ Finger Service","Wait for the active run to finish, or exit to stop the worker.",Forms.ToolTipIcon.Info); return; }
+        if(running) {progress?.Show();progress?.Activate();return;}
         using var form=new SettingsForm(settings);
         timer.Stop();
         if(form.ShowDialog()==Forms.DialogResult.OK) { settings=form.Value; scheduled=form.StartRequested; if(scheduled) next=FirstRun(settings,DateTimeOffset.Now); UpdateStatus(scheduled?"Schedule started":"Settings saved - stopped"); }
@@ -104,7 +127,10 @@ internal sealed class TrayApp : Forms.ApplicationContext {
     private void Exit() {
         if(running && Forms.MessageBox.Show("Stop the active task and exit?", "CJ Finger Service",Forms.MessageBoxButtons.YesNo)!=Forms.DialogResult.Yes) return;
         exiting=true;
-        scheduled=false; timer.Stop(); if(worker is { HasExited:false }) worker.Kill(true);
-        updateTimer.Stop(); updateTimer.Dispose(); tray.Visible=false; tray.Dispose(); timer.Dispose(); ExitThread();
+        scheduled=false; timer.Stop();activeTask?.Cancel();
+        try {
+            if(worker is { HasExited:false }) {worker.Kill();worker.WaitForExit(3000);}
+            updateTimer.Stop(); updateTimer.Dispose(); tray.Visible=false; tray.Dispose(); timer.Dispose(); ExitThread();
+        } finally {Environment.Exit(0);}
     }
 }

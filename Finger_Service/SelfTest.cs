@@ -1,15 +1,15 @@
 namespace CJFingerService;
 internal static class SelfTest {
-    public static void StartupTest(bool startMacro=false) {
+    public static void StartupTest(bool startMacro=false,string? control=null) {
         if(string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CJ_FINGER_SERVICE_DATA")))throw new InvalidOperationException("Set an isolated CJ_FINGER_SERVICE_DATA directory for the startup test.");
-        var report=Path.Combine(Settings.Root,startMacro?"start-result.txt":"startup-result.txt");
+        var report=Path.Combine(Settings.Root,control is not null?control.ToLowerInvariant()+"-result.txt":startMacro?"start-result.txt":"startup-result.txt");
         // Isolated test root only: emulate a legacy installation that used to auto-start.
         Directory.CreateDirectory(Path.Combine(Settings.Root,"exports"));
         var settings=new Settings {ProgramPath=Environment.ProcessPath!,ExportDirectory=Path.Combine(Settings.Root,"exports"),Username="test-user",PasswordProtected=Settings.Protect("test-password"),ScheduleStartAt=DateTime.Now.AddMinutes(-5)};
         var json=System.Text.Json.JsonSerializer.Serialize(settings);
         File.WriteAllText(Settings.ConfigPath,json[..^1]+",\"AutoStartSchedule\":true}");
         using var fixture=startMacro?System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) {Arguments="--demo-target",UseShellExecute=false}):null;
-        using var app=System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) {UseShellExecute=false})!;
+        using var app=System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) {Arguments="--isolated-test-tray",UseShellExecute=false})!;
         try {
             Task.Run(()=> {
                 IntPtr handle=IntPtr.Zero;
@@ -31,6 +31,30 @@ internal static class SelfTest {
                 Native.PostMessage((IntPtr)save.Current.NativeWindowHandle,0x00F5,IntPtr.Zero,IntPtr.Zero);
                 for(var attempt=0;attempt<20 && Native.FindWindow(app.Id,"CJ Finger Service")!=IntPtr.Zero;attempt++)Thread.Sleep(250);
                 if(Native.FindWindow(app.Id,"CJ Finger Service")!=IntPtr.Zero)throw new Exception("Save did not close Settings.");
+                if(control is not null) {
+                    var stageFile=Path.Combine(Settings.Root,"worker-stage.txt");
+                    for(var attempt=0;attempt<90;attempt++){if(File.Exists(stageFile)&&File.ReadAllText(stageFile)=="download")break;Thread.Sleep(500);}
+                    if(!File.Exists(stageFile)||File.ReadAllText(stageFile)!="download")throw new Exception("Worker did not reach the simulated stuck download.");
+                    var taskWindow=System.Windows.Automation.AutomationElement.FromHandle(Native.FindWindow(app.Id,"Active task"));
+                    var button=taskWindow.FindAll(System.Windows.Automation.TreeScope.Descendants,new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.ControlTypeProperty,System.Windows.Automation.ControlType.Button)).Cast<System.Windows.Automation.AutomationElement>().Single(e=>e.Current.Name==control);
+                    Native.PostMessage((IntPtr)button.Current.NativeWindowHandle,0x00F5,IntPtr.Zero,IntPtr.Zero);
+                    if(control=="Exit") {
+                        Thread.Sleep(500);
+                        var confirm=System.Windows.Automation.AutomationElement.FromHandle(Native.FindWindow(app.Id,"CJ Finger Service"));
+                        var yes=confirm.FindAll(System.Windows.Automation.TreeScope.Descendants,new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.ControlTypeProperty,System.Windows.Automation.ControlType.Button)).Cast<System.Windows.Automation.AutomationElement>().Single(e=>e.Current.Name.Replace("&","")=="Yes");
+                        Native.PostMessage((IntPtr)yes.Current.NativeWindowHandle,0x00F5,IntPtr.Zero,IntPtr.Zero);
+                        if(!app.WaitForExit(5000))throw new Exception("Exit left the tray process running.");
+                    } else {
+                        var logFile=Path.Combine(Settings.Root,"service.log");
+                        for(var attempt=0;attempt<20 && !File.ReadAllText(logFile).Contains("CANCELLED by user");attempt++)Thread.Sleep(250);
+                        if(!File.ReadAllText(logFile).Contains("CANCELLED by user"))throw new Exception("Cancel did not stop the task.");
+                        if(app.HasExited)throw new Exception("Cancel unexpectedly exited the tray app.");
+                    }
+                    var workerId=int.Parse(File.ReadAllText(Path.Combine(Settings.Root,"worker.pid")));
+                    try {using var remaining=System.Diagnostics.Process.GetProcessById(workerId);if(!remaining.HasExited)throw new Exception("Worker still alive after "+control);}catch(ArgumentException){}
+                    if(fixture!.HasExited)throw new Exception("Target exporter was closed by "+control);
+                    return;
+                }
                 if(startMacro) {
                     var resultPath=Path.Combine(Settings.Root,"worker-result.json");
                     for(var attempt=0;attempt<120 && !File.Exists(resultPath);attempt++)Thread.Sleep(500);
@@ -44,7 +68,7 @@ internal static class SelfTest {
                 if(File.Exists(Path.Combine(Settings.Root,"worker-result.json")) || File.Exists(Path.Combine(Settings.Root,"worker-stage.txt")) || (File.Exists(log)&&File.ReadAllText(log).Contains("TASK START")))throw new Exception("Automation started without Start.");
                 if(File.ReadAllText(Settings.ConfigPath).Contains("AutoStartSchedule"))throw new Exception("Legacy auto-start flag was retained.");
             }).GetAwaiter().GetResult();
-            File.WriteAllText(report,startMacro?"PASS: Start button with the default current time launches the macro and exports TXT successfully.":"PASS: English settings, legacy auto-start ignored, past date does not run, Save remains stopped.");
+            File.WriteAllText(report,control is not null?$"PASS: {control} stops the stuck worker, preserves the target exporter and leaves no worker process.":startMacro?"PASS: Start button with the default current time launches the macro and exports TXT successfully.":"PASS: English settings, legacy auto-start ignored, past date does not run, Save remains stopped.");
         }catch(Exception e){File.WriteAllText(report,"FAIL: "+e);Environment.ExitCode=1;}
         finally{if(!app.HasExited)app.Kill(true);if(fixture is not null && !fixture.HasExited)fixture.Kill(true);}
     }
@@ -61,7 +85,7 @@ internal static class SelfTest {
             var today=TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTime.UtcNow,"SE Asia Standard Time").Date;
             var content=File.ReadAllText(file);
             if(!content.Contains(today.AddDays(-3).ToString("yyyyMMdd")) || !content.Contains(today.ToString("yyyyMMdd"))) throw new Exception("Date range mismatch");
-            if(!stages.SequenceEqual(new[]{"login","select_dates","download","export"})) throw new Exception("Unexpected stage order");
+            if(!stages.Where(s=>!s.StartsWith("Retry ")).SequenceEqual(new[]{"login","select_dates","save_directory","download","export"})) throw new Exception("Unexpected stage order");
             File.WriteAllText(report,"PASS: UI Automation login, session, 3-day dates, wait ready, TXT export and validation.\n"+file);
         } catch(Exception e) { File.WriteAllText(report,"FAIL: "+e); try { fixture.Refresh(); Native.Screenshot(fixture.MainWindowHandle,Path.Combine(Settings.Root,"fixture-failure.png")); } catch { } Environment.ExitCode=1; }
         finally { if(!fixture.HasExited) fixture.Kill(true); }

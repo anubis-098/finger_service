@@ -8,6 +8,8 @@ Version 1.2.0 and later checks GitHub Releases on startup and every 12 hours. Us
 
 Version 1.3 has an English-only, tabbed interface and a compressed standalone executable. It always opens **stopped**, including after an update. From 1.3.1, click **Start** to begin now or select a future date/time to start later. Runs repeat every 30 minutes. **Save** does not start automation.
 
+Version 1.4.0 always saves the export directory before downloading, retries stalled download/export steps up to three attempts, and adds an active-task window with Cancel and Exit. Cancelling stops the worker and schedule; exiting closes the tray process while leaving WEB8 open.
+
 - [Setup and usage](Finger_Service/README.md)
 - [Releasing updates](Finger_Service/UPDATES.md)
 - [Dummy application](Finger_Service/Dummy/README.md)
