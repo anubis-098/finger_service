@@ -1,0 +1,9 @@
+bin/
+obj/
+.dotnet/
+test-data/
+publish/
+publish-*/
+*.zip
+release/
+*.user

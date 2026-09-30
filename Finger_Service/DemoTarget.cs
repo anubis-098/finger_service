@@ -1,0 +1,62 @@
+// Local fixture only. Never connects to WEB8 or a production fingerprint database.
+using System.Drawing;
+using Forms=System.Windows.Forms;
+namespace CJFingerService;
+internal sealed class DemoTarget:Forms.Form {
+    public DemoTarget() {
+        Text="Text File - Time Access Solution V1.0 Area Select - TEST FIXTURE"; Width=660; Height=530;
+        var from=new Forms.DateTimePicker { Left=40,Top=90,Width=130,Format=Forms.DateTimePickerFormat.Custom,CustomFormat="dd/MM/yyyy" };
+        var to=new Forms.DateTimePicker { Left=190,Top=90,Width=130,Format=Forms.DateTimePickerFormat.Custom,CustomFormat="dd/MM/yyyy" };
+        var output=new Forms.TextBox { Left=10,Top=135,Width=620,Height=285,Multiline=true,ReadOnly=true };
+        var folder=new Forms.TextBox { Left=40,Top=450,Width=450,Text=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"CJFingerDummy","exports") };
+        Directory.CreateDirectory(folder.Text);
+        var login=new Forms.Button { Text="1. ล็อกอินเข้าระบบ",Left=280,Top=55,Width=160 };
+        var download=new Forms.Button { Text="2. ดึงข้อมูล",Left=325,Top=90,Width=110 };
+        var export=new Forms.Button { Text="3. บันทึกไฟล์ txt",Left=440,Top=90,Width=150,Enabled=false };
+        var save=new Forms.Button { Text="บันทึกค่า",Left=530,Top=450,Width=90 };
+        Controls.AddRange([from,to,output,folder,login,download,export,save]);
+        Controls.Add(new Forms.Label { Left=12,Top=12,AutoSize=true,Text="DUMMY ONLY | Username: test-user | Password: test-password" });
+        Controls.Add(new Forms.Label { Left=40,Top=70,AutoSize=true,Text="From                     To" });
+        Controls.Add(new Forms.Label { Left=40,Top=427,AutoSize=true,Text="TXT export folder" });
+        var session=false;
+        login.Click+=(_,_)=> {
+            using var dialog=new Forms.Form { Text="Login Session",Width=650,Height=500,StartPosition=Forms.FormStartPosition.CenterParent };
+            var username=new Forms.TextBox { Left=200,Top=100,Width=220,AccessibleName="Username" };
+            var password=new Forms.TextBox { Left=200,Top=150,Width=220,UseSystemPasswordChar=true,AccessibleName="Password" };
+            var submit=new Forms.Button { Left=200,Top=200,Width=220,Text="Log in" };
+            var use=new Forms.Button { Dock=Forms.DockStyle.Bottom,Height=35,Text="ใช้ Session นี้",Enabled=false };
+            dialog.Controls.AddRange([username,password,submit,use]);
+            dialog.Controls.Add(new Forms.Label { Left=70,Top=103,AutoSize=true,Text="Username" });
+            dialog.Controls.Add(new Forms.Label { Left=70,Top=153,AutoSize=true,Text="Password" });
+            var error=new Forms.Label { Left=70,Top=245,AutoSize=true,ForeColor=Color.Firebrick };
+            dialog.Controls.Add(error);
+            submit.Click+=(_,_)=> {
+                if(username.Text!="test-user" || password.Text!="test-password") { error.Text="Use test-user / test-password"; return; }
+                error.Text="";
+                username.Visible=password.Visible=submit.Visible=false;
+                dialog.Controls.Add(new Forms.Label { Left=50,Top=70,AutoSize=true,Text="บันทึกสำเร็จ ระบบล็อกอินเรียบร้อยแล้ว" }); use.Enabled=true;
+            };
+            use.Click+=(_,_)=> { session=true; dialog.Close(); };
+            dialog.ShowDialog(this);
+        };
+        download.Click+=async(_,_)=> {
+            if(!session) { output.Text="Please log in and use the session first."; return; }
+            if(from.Value.Date>to.Value.Date) { output.Text="From date must be on or before To date."; return; }
+            download.Enabled=false; export.Enabled=false; output.Text="loading";
+            await Task.Delay(1000);
+            output.Text=$"count: 2\r\nstatus: ready\r\nTEST01 {from.Value:yyyyMMdd} 2000\r\nTEST01 {to.Value:yyyyMMdd} 0500";
+            download.Enabled=true; export.Enabled=true;
+        };
+        export.Click+=(_,_)=> {
+            try {
+            Directory.CreateDirectory(folder.Text);
+            File.WriteAllText(Path.Combine(folder.Text,$"All-attlogd{DateTime.Now:yyyy-MM-ddHHmmssfff}.txt"),$"TEST01 {from.Value:yyyyMMdd} 2000\nTEST01 {to.Value:yyyyMMdd} 0500\n");
+            output.AppendText("\r\nTXT saved to: "+folder.Text);
+            } catch(Exception ex) { output.Text="Export failed: "+ex.Message; }
+        };
+        save.Click+=(_,_)=> {
+            try { Directory.CreateDirectory(folder.Text); output.Text="Export folder ready: "+folder.Text; }
+            catch(Exception ex) { output.Text="Invalid folder: "+ex.Message; }
+        };
+    }
+}
