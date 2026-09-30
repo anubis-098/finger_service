@@ -1,25 +1,19 @@
-# GitHub updates — v1.2.0
+# GitHub release maintenance
 
 Repository: https://github.com/anubis-098/finger_service
 
-## ผู้ใช้ Client
+1. Update `<Version>` in `FingerService.csproj`, using three numeric parts.
+2. Build and test the release. Keep the repository's `Finger_Service` source directory synchronized. Never commit local settings, tokens, pending exports or logs.
+3. Commit the changes and push a matching tag, such as `v1.3.0`.
+4. `.github/workflows/release.yml` checks the tag, builds on Windows and publishes the ZIP using the GitHub Actions token.
+5. Verify the latest release API reports the expected tag and a SHA-256 digest for the ZIP.
 
-ติดตั้งรุ่นที่รองรับ updater ครั้งแรกโดยแตก ZIP ทั้งโฟลเดอร์ ปิดรุ่นเดิมแล้วเปิด `CJFingerService.exe` ใหม่ หลังจากนี้โปรแกรมตรวจ GitHub ตอนเปิด (หลัง 10 วินาที) และทุก 12 ชั่วโมง ใช้เมนู System tray → **ตรวจอัปเดต / Check updates** เพื่อตรวจเองและยืนยันติดตั้งได้ รุ่นใหม่จะดาวน์โหลด ตรวจ SHA-256 เทียบ GitHub Release asset และตรวจเลขรุ่นใน EXE ก่อนปิดตัวเอง ให้ helper สำรอง/แทนที่ไฟล์ แล้วเปิดใหม่
+For manual publication, run `Finger_Service/release.ps1` and attach `release/CJFingerService-win-x64.zip` plus `SHA256.txt` to a published, non-prerelease GitHub Release. Do not rename the ZIP. It must contain exactly `CJFingerService.exe`, `ocr.ps1`, `update.ps1` and `README.md` at the root.
 
-ไม่อัปเดตขณะมาโครทำงาน ไม่ลบ `%LOCALAPPDATA%\CJFingerService` ซึ่งเก็บ Settings, รหัสผ่าน, Token และคิว TXT ใช้ได้กับโฟลเดอร์ที่บัญชี Windows มีสิทธิ์เขียนเท่านั้น เมื่ออัปเดตเปิดใหม่ ตารางงานใช้ค่าที่บันทึกไว้ หากเวลาเริ่มผ่านไปแล้วจะเริ่มทำงานทันทีตามพฤติกรรมเดิม
+Clients validate the ZIP digest against GitHub's asset metadata and compare the executable version with the release tag. GitHub checksum validation is not an Authenticode signature. A release with a missing digest or unexpected package files is rejected.
 
-สำรองโปรแกรมเดิมและ `install.log` อยู่ใน `%LOCALAPPDATA%\CJFingerService\updates\<id>\` หากแทนที่ไฟล์ล้มเหลว helper พยายามคืนไฟล์เดิม ไม่ใช่ระบบตรวจสุขภาพหรือ rollback หลังโปรแกรมรุ่นใหม่เปิดแล้วเกิดบั๊ก การตรวจ checksum ยืนยันไฟล์ตรงกับ asset ที่ GitHub รายงาน ไม่ใช่ Authenticode signature
+Clients check on startup and every 12 hours, and install only after confirmation. The helper waits for the old process to exit, backs up application files and installs the replacement. It attempts rollback if file installation fails. It does not detect every crash or behavioral regression after the new executable starts. Installation logs and backups remain under `%LOCALAPPDATA%\CJFingerService\updates`.
 
-## ผู้พัฒนา: เผยแพร่รุ่นใหม่
+Version 1.3.0 always restarts stopped. The user must select a future start date/time and click Start again after updating. User settings and queued exports are not replaced by an update.
 
-1. เก็บโค้ด `Finger_Service` ใน repository นี้ โดยไม่อัปโหลด settings.json, test-data, pending, logs หรือข้อมูลพนักงาน `.gitignore` เตรียมไว้แล้ว
-2. เปลี่ยน `<Version>` ใน `FingerService.csproj` เช่น `1.2.1` ใช้เลขสามส่วน
-3. รัน `powershell -ExecutionPolicy Bypass -File Finger_Service/release.ps1`
-4. สร้าง GitHub Release แบบ Published (ไม่ใช่ Draft/Prerelease) ใช้ tag ให้ตรง เช่น `v1.2.1` แนบไฟล์ `release/CJFingerService-win-x64.zip` ชื่อตรงนี้เท่านั้น และแนบ `SHA256.txt` เพื่อให้ตรวจเองได้
-5. ZIP ต้องมี `CJFingerService.exe`, `ocr.ps1`, `update.ps1`, `README.md` ที่ root เท่านั้น GitHub API ต้องคืน digest SHA-256 ของ ZIP มิฉะนั้น Client จะปฏิเสธ
-
-หากต้องการ Build/Release อัตโนมัติ ให้คัดลอก `github-release.yml` ไป `.github/workflows/release.yml` ใน repository แล้ว push tag ใหม่ Workflow จะตรวจ version, build บน Windows และเผยแพร่ asset ด้วย GitHub Actions token ไม่ต้องแจก GitHub PAT ให้ Client
-
-ตรวจรุ่นที่เผยแพร่แล้วที่ https://github.com/anubis-098/finger_service/releases รุ่น 1.2.0 เป็นรุ่นแรกที่รองรับ updater ต้องติดตั้งด้วยตนเองครั้งแรกก่อน หลังจากนั้นเมื่อมีรุ่นสูงกว่าจะตรวจพบและติดตั้งผ่านเมนู Check updates ได้
-
-อ้างอิง API: https://docs.github.com/en/rest/releases/releases#get-the-latest-release
+API reference: https://docs.github.com/en/rest/releases/releases#get-the-latest-release

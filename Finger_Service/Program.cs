@@ -11,6 +11,7 @@ internal static class Program {
         Forms.Application.EnableVisualStyles();
         Forms.Application.SetCompatibleTextRenderingDefault(false);
         if(args.Contains("--self-test")) { SelfTest.Run(); return; }
+        if(args.Contains("--startup-test")) { SelfTest.StartupTest(); Environment.Exit(Environment.ExitCode); return; }
         if(args.Contains("--demo-target")) { Forms.Application.Run(new DemoTarget()); return; }
         if(args.Contains("--automation-test")) { SelfTest.AutomationTest(); return; }
         if(args.Contains("--set-password")) { var settings=Settings.Load(); settings.PasswordProtected=Settings.Protect(Console.In.ReadToEnd().TrimEnd('\r','\n')); settings.Save(); return; }

@@ -14,7 +14,6 @@ public sealed class Settings {
     public string TokenProtected { get; set; } = "";
     public int LookbackDays { get; set; } = 3;
     public int DownloadTimeoutSeconds { get; set; } = 600;
-    public bool AutoStartSchedule { get; set; }
     public DateTime? ScheduleStartAt { get; set; }
     public string OcrLanguage { get; set; } = "th";
     public static readonly string Root = Environment.GetEnvironmentVariable("CJ_FINGER_SERVICE_DATA") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CJFingerService");

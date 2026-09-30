@@ -1,16 +1,12 @@
 # Finger Service Dummy
 
-โปรแกรมจำลองสำหรับ Windows x64 ใช้ทดสอบ Finger Service โดยไม่เชื่อมต่อเครื่องสแกนหรือฐานข้อมูลจริง
+Windows x64 test application with a login form, date range, simulated download and TXT export. It never connects to a real fingerprint device or database. Target button captions intentionally mirror the real Thai WEB8 interface.
 
-1. Build ด้วย `powershell -ExecutionPolicy Bypass -File Finger_Service/Dummy/build.ps1` หรือใช้ `publish/CJFingerDummy.exe` ที่ build ไว้แล้ว
-2. เปิด Settings ของ CJFingerService ตั้ง Program path เป็นไฟล์ `CJFingerDummy.exe` (ไม่ใช่ CJFingerService.exe)
-3. ตั้ง Username เป็น `test-user` และ Password เป็น `test-password` ซึ่งเป็นบัญชีจำลองเท่านั้น
-4. ตั้ง Export directory เป็นโฟลเดอร์ทดสอบที่มีอยู่จริง เช่น `%LOCALAPPDATA%\CJFingerDummy\exports` (เปิด Dummy ครั้งแรกจะสร้างโฟลเดอร์นี้ให้ ให้ใส่เส้นทางเต็มใน Settings)
-5. เว้น Location URL ว่าง บันทึก แล้วเลือก Run now ใน System tray
-6. Service จะล็อกอิน เลือกช่วงวันที่ย้อนหลัง 3 วันถึงวันนี้ รอข้อมูล และบันทึก TXT อัตโนมัติ หลังทดสอบผ่านสามารถเปิดรอบทุก 30 นาทีได้
+1. Build with `./Finger_Service/Dummy/build.ps1`, then open `publish/CJFingerDummy.exe` once to create its default export folder.
+2. Set the Finger Service export program to this Dummy executable. Use `test-user` and `test-password` as test credentials.
+3. Choose an existing test export folder. Keep server uploads disabled, or point them only at an isolated test server.
+4. Select a future date/time in Schedule and click Start.
 
-ทดสอบด้วยมือได้โดยเปิด Dummy แล้วกดล็อกอิน → Log in → ใช้ Session นี้ → เลือกวันที่ → ดึงข้อมูล → บันทึกไฟล์ txt
+The Dummy requires login and session confirmation before download. It writes two synthetic TEST01 rows using the selected start and end dates. This data tests export plumbing, not payroll or shift calculations. Do not import it into a production employee database.
 
-ไฟล์แต่ละรอบมีชื่อใหม่ ไม่เขียนทับไฟล์เดิม มีข้อมูลจำลอง TEST01 สองแถว: วันเริ่มต้นเวลา 20:00 และวันสิ้นสุดเวลา 05:00 รูปแบบ `รหัสพนักงาน YYYYMMDD HHmm` เพื่อทดสอบกระบวนการส่งออก ไม่ใช่ชุดข้อมูลสำหรับตรวจความถูกต้องการคำนวณกะหรือเงินเดือน ห้ามนำเข้าเป็นข้อมูลพนักงานจริง
-
-ต้องใช้ Windows ที่ล็อกอินและไม่ล็อกหน้าจอ โปรแกรมต้นทางจะถูกนำขึ้นด้านหน้าเพื่อทำงาน ไม่ต้องเปิด Dummy เองก่อน เพราะ Service เปิดให้ได้ หากเปิดอยู่แล้วให้เปิดเพียงหน้าต่างเดียว โปรแกรมนี้ไม่มีการส่งข้อมูลเข้า Server
+The default folder is `%LOCALAPPDATA%\CJFingerDummy\exports`. The macro may update this field to its configured export directory. Each export has a new filename. Keep the desktop unlocked during automation.

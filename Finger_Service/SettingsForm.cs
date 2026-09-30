@@ -1,65 +1,99 @@
 using System.Drawing;
-using Forms = System.Windows.Forms;
 using Microsoft.Win32;
+using Forms = System.Windows.Forms;
+
 namespace CJFingerService;
+
 internal sealed class SettingsForm : Forms.Form {
     public Settings Value { get; private set; }
+    public bool StartRequested { get; private set; }
+
     public SettingsForm(Settings initial) {
-        Value=initial; Text="CJ Finger Service · ตั้งค่า"; Width=620; Height=565; MinimumSize=new Size(580,510); StartPosition=Forms.FormStartPosition.CenterScreen;
-        Font=new Font("Segoe UI",10); BackColor=Color.White;
-        var layout=new Forms.TableLayoutPanel { Dock=Forms.DockStyle.Fill,Padding=new Forms.Padding(12),ColumnCount=3,AutoScroll=true };
-        layout.ColumnStyles.Add(new Forms.ColumnStyle(Forms.SizeType.Absolute,180)); layout.ColumnStyles.Add(new Forms.ColumnStyle(Forms.SizeType.Percent,100)); layout.ColumnStyles.Add(new Forms.ColumnStyle(Forms.SizeType.Absolute,60));
-        Controls.Add(layout);
-        Forms.TextBox Field(string caption,string value,bool password=false) { var row=layout.RowCount++; layout.RowStyles.Add(new Forms.RowStyle(Forms.SizeType.AutoSize)); layout.Controls.Add(new Forms.Label {Text=caption,AutoSize=true,Margin=new Forms.Padding(0,5,8,5)},0,row); var input=new Forms.TextBox { Text=value,Dock=Forms.DockStyle.Fill,UseSystemPasswordChar=password,Margin=new Forms.Padding(0,3,5,3) }; layout.Controls.Add(input,1,row); return input; }
-        var program=Field("โปรแกรม WEB8 (.exe)",initial.ProgramPath); var choose=new Forms.Button { Text="เลือก",AutoSize=true }; layout.Controls.Add(choose,2,0);
-        choose.Click+=(_,_)=> { using var dialog=new Forms.OpenFileDialog { Filter="Program (*.exe)|*.exe" }; if(dialog.ShowDialog()==Forms.DialogResult.OK) program.Text=dialog.FileName; };
-        var folder=Field("โฟลเดอร์ Export TXT",initial.ExportDirectory); var browse=new Forms.Button { Text="เลือก",AutoSize=true }; layout.Controls.Add(browse,2,1);
-        browse.Click+=(_,_)=> { using var dialog=new Forms.FolderBrowserDialog { SelectedPath=folder.Text }; if(dialog.ShowDialog()==Forms.DialogResult.OK) folder.Text=dialog.SelectedPath; };
-        var user=Field("Username",initial.Username);
-        var password=Field("Password",SafeRead(initial.PasswordProtected),true);
-        var server=Field("Server URL",initial.ServerUrl);
-        var token=Field("Service token",SafeRead(initial.TokenProtected),true);
-        var upload=new Forms.CheckBox { Text="ส่ง TXT ไปยัง Server",Checked=initial.EnableUpload,AutoSize=true };
-        var http=new Forms.CheckBox { Text="อนุญาต HTTP ใน LAN (ไม่เข้ารหัส)",Checked=initial.AllowHttp,AutoSize=true };
-        layout.Controls.Add(upload,1,layout.RowCount++); layout.SetColumnSpan(upload,2);
-        layout.Controls.Add(http,1,layout.RowCount++); layout.SetColumnSpan(http,2);
-        var testServer=new Forms.Button { Text="Test connection",AutoSize=true };
-        layout.Controls.Add(testServer,1,layout.RowCount++);
-        testServer.Click+=async(_,_)=> {
-            testServer.Enabled=false;
-            try { await UploadClient.Test(new Settings {ServerUrl=server.Text.Trim(),TokenProtected=Settings.Protect(token.Text.Trim()),AllowHttp=http.Checked}); Forms.MessageBox.Show("เชื่อมต่อ Server สำเร็จ / Connected successfully"); }
-            catch(Exception e) { Forms.MessageBox.Show(e.Message,"Connection failed"); }
-            finally { if(!testServer.IsDisposed) testServer.Enabled=true; }
-        };
-        var days=Field("ย้อนหลัง (วัน)",initial.LookbackDays.ToString());
-        var timeout=Field("รอดึงข้อมูลสูงสุด (วินาที)",initial.DownloadTimeoutSeconds.ToString());
-        var language=Field("OCR language",initial.OcrLanguage);
-        var startAt=new Forms.DateTimePicker { Format=Forms.DateTimePickerFormat.Custom,CustomFormat="dd/MM/yyyy HH:mm",ShowUpDown=true,ShowCheckBox=true,Checked=initial.ScheduleStartAt.HasValue,Value=initial.ScheduleStartAt ?? DateTime.Now.AddMinutes(1),Dock=Forms.DockStyle.Fill };
-        var startRow=layout.RowCount++;
-        layout.Controls.Add(new Forms.Label { Text="เวลาเริ่ม (ไม่ติ๊ก = ทันที)",AutoSize=true },0,startRow);
-        layout.Controls.Add(startAt,1,startRow); layout.SetColumnSpan(startAt,2);
-        var schedule=new Forms.CheckBox { Text="เริ่มรอบอัตโนมัติทุก 30 นาที",Checked=initial.AutoStartSchedule,AutoSize=true };
-        var startup=new Forms.CheckBox { Text="เปิด System tray เมื่อเข้า Windows",Checked=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")?.GetValue("CJFingerService")!=null,AutoSize=true };
-        layout.Controls.Add(schedule,1,layout.RowCount++); layout.SetColumnSpan(schedule,2); layout.Controls.Add(startup,1,layout.RowCount++); layout.SetColumnSpan(startup,2);
-        var note=new Forms.Label { AutoSize=true,MaximumSize=new Size(550,0),ForeColor=Color.DarkSlateGray,Text="เริ่มตามเวลาของ Windows แล้วทำซ้ำทุก 30 นาที\nต้องไม่ล็อกหน้าจอระหว่างรัน · เก็บไฟล์เดิมและส่งซ้ำเมื่อส่งไม่สำเร็จ\nรหัสผ่านและ Service token เข้ารหัสด้วย Windows DPAPI" };
-        layout.Controls.Add(note,0,layout.RowCount++); layout.SetColumnSpan(note,3);
-        var buttons=new Forms.FlowLayoutPanel { AutoSize=true,Dock=Forms.DockStyle.Fill };
-        var save=new Forms.Button { Text="Save",AutoSize=true };
-        var start=new Forms.Button { Text="▶ Start",AutoSize=true,BackColor=Color.FromArgb(0,120,181),ForeColor=Color.White };
-        buttons.Controls.AddRange([save,start]); layout.Controls.Add(buttons,1,layout.RowCount++); layout.SetColumnSpan(buttons,2);
-        void Commit(bool startSchedule) {
-            if(!int.TryParse(days.Text,out var lookback)||lookback<0||lookback>31||!int.TryParse(timeout.Text,out var wait)||wait<30||wait>1800) { Forms.MessageBox.Show("Lookback: 0–31 days. Timeout: 30–1800 seconds."); return; }
-            Value=new Settings {ProgramPath=program.Text.Trim(),ExportDirectory=folder.Text.Trim(),Username=user.Text.Trim(),PasswordProtected=Settings.Protect(password.Text),TokenProtected=Settings.Protect(token.Text.Trim()),ServerUrl=server.Text.Trim(),EnableUpload=upload.Checked,AllowHttp=http.Checked,LookbackDays=lookback,DownloadTimeoutSeconds=wait,OcrLanguage=language.Text.Trim(),AutoStartSchedule=startSchedule||schedule.Checked,ScheduleStartAt=startAt.Checked?startAt.Value:null};
-            if(Value.EnableUpload) { try { _=UploadClient.BaseUri(Value); } catch(Exception e) { Forms.MessageBox.Show(e.Message); return; } }
-            if(Value.AutoStartSchedule) { try { Value.Validate(false); } catch(Exception e) { Forms.MessageBox.Show(e.Message); return; } }
-            Value.Save();
-            using var key=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
-            if(startup.Checked) key.SetValue("CJFingerService",$"\"{Environment.ProcessPath}\""); else key.DeleteValue("CJFingerService",false);
-            DialogResult=Forms.DialogResult.OK; Close();
+        Value=initial;
+        Text=$"CJ Finger Service {Updater.VersionText}";
+        ClientSize=new Size(560,410);
+        MinimumSize=new Size(560,440);
+        StartPosition=Forms.FormStartPosition.CenterScreen;
+        Font=new Font("Segoe UI",9);
+        BackColor=Color.White;
+
+        var actions=new Forms.FlowLayoutPanel {Dock=Forms.DockStyle.Bottom,Height=48,Padding=new Forms.Padding(8),FlowDirection=Forms.FlowDirection.RightToLeft};
+        var start=new Forms.Button {Text="Start",Width=90,Height=30,BackColor=Color.FromArgb(0,120,181),ForeColor=Color.White};
+        var save=new Forms.Button {Text="Save",Width=90,Height=30};
+        actions.Controls.AddRange([start,save]);
+        var tabs=new Forms.TabControl {Dock=Forms.DockStyle.Fill};
+        Controls.Add(tabs); Controls.Add(actions);
+
+        Forms.TableLayoutPanel Tab(string name) {
+            var page=new Forms.TabPage(name) {BackColor=Color.White,AccessibleName=name};
+            var panel=new Forms.TableLayoutPanel {Dock=Forms.DockStyle.Fill,Padding=new Forms.Padding(12),AutoScroll=true,ColumnCount=3,AccessibleName=name};
+            panel.ColumnStyles.Add(new Forms.ColumnStyle(Forms.SizeType.Absolute,135));
+            panel.ColumnStyles.Add(new Forms.ColumnStyle(Forms.SizeType.Percent,100));
+            panel.ColumnStyles.Add(new Forms.ColumnStyle(Forms.SizeType.Absolute,66));
+            page.Controls.Add(panel); tabs.TabPages.Add(page); return panel;
         }
-        save.Click+=(_,_)=>Commit(false);
-        start.Click+=(_,_)=>Commit(true);
-        AcceptButton=save;
+        void Row(Forms.TableLayoutPanel panel,string label,Forms.Control input) {
+            var row=panel.RowCount++; panel.RowStyles.Add(new Forms.RowStyle(Forms.SizeType.AutoSize));
+            panel.Controls.Add(new Forms.Label {Text=label,AutoSize=true,Margin=new Forms.Padding(0,7,5,7)},0,row);
+            input.Dock=Forms.DockStyle.Fill; input.Margin=new Forms.Padding(0,4,5,4); panel.Controls.Add(input,1,row); panel.SetColumnSpan(input,2);
+        }
+        Forms.TextBox Field(Forms.TableLayoutPanel panel,string label,string value,bool secret=false) {
+            var input=new Forms.TextBox {Text=value,UseSystemPasswordChar=secret}; Row(panel,label,input);return input;
+        }
+        void Note(Forms.TableLayoutPanel panel,string text) {
+            var label=new Forms.Label {Text=text,AutoSize=true,MaximumSize=new Size(505,0),ForeColor=Color.DimGray,Margin=new Forms.Padding(0,12,0,8)};
+            var row=panel.RowCount++; panel.Controls.Add(label,0,row);panel.SetColumnSpan(label,3);
+        }
+
+        var export=Tab("Export");
+        var program=Field(export,"WEB8 program",initial.ProgramPath);
+        export.SetColumnSpan(program,1);
+        var choose=new Forms.Button {Text="Browse",AutoSize=true};export.Controls.Add(choose,2,0);
+        choose.Click+=(_,_)=> {using var picker=new Forms.OpenFileDialog {Filter="Programs (*.exe)|*.exe"};if(picker.ShowDialog()==Forms.DialogResult.OK)program.Text=picker.FileName;};
+        var folder=Field(export,"TXT folder",initial.ExportDirectory);
+        export.SetColumnSpan(folder,1);
+        var browse=new Forms.Button {Text="Browse",AutoSize=true};export.Controls.Add(browse,2,1);
+        browse.Click+=(_,_)=> {using var picker=new Forms.FolderBrowserDialog {SelectedPath=folder.Text};if(picker.ShowDialog()==Forms.DialogResult.OK)folder.Text=picker.SelectedPath;};
+        var user=Field(export,"Username",initial.Username);
+        var password=Field(export,"Password",SafeRead(initial.PasswordProtected),true);
+        var days=new Forms.NumericUpDown {Minimum=0,Maximum=31,Value=Math.Clamp(initial.LookbackDays,0,31)}; Row(export,"Lookback days",days);
+        var timeout=new Forms.NumericUpDown {Minimum=30,Maximum=1800,Increment=30,Value=Math.Clamp(initial.DownloadTimeoutSeconds,30,1800)};Row(export,"Timeout (seconds)",timeout);
+        var language=Field(export,"Target OCR language",initial.OcrLanguage);
+        Note(export,"Keep the Windows session unlocked. The target export application may come to the foreground.");
+
+        var serverTab=Tab("Server");
+        var server=Field(serverTab,"Website URL",initial.ServerUrl);
+        var token=Field(serverTab,"Service token",SafeRead(initial.TokenProtected),true);
+        var upload=new Forms.CheckBox {Text="Upload exported TXT files",Checked=initial.EnableUpload,AutoSize=true};Row(serverTab,"",upload);
+        var http=new Forms.CheckBox {Text="Allow unencrypted HTTP on a trusted LAN",Checked=initial.AllowHttp,AutoSize=true};Row(serverTab,"",http);
+        var test=new Forms.Button {Text="Test connection",AutoSize=true};Row(serverTab,"",test);
+        test.Click+=async(_,_)=> {
+            test.Enabled=false;
+            try {await UploadClient.Test(new Settings {ServerUrl=server.Text.Trim(),TokenProtected=Settings.Protect(token.Text.Trim()),AllowHttp=http.Checked});if(!IsDisposed)Forms.MessageBox.Show("Connected successfully.");}
+            catch(Exception e) {if(!IsDisposed)Forms.MessageBox.Show(e.Message,"Connection failed");}
+            finally {if(!test.IsDisposed)test.Enabled=true;}
+        };
+        Note(serverTab,"Create a service token on the website's Fingerprint logs page. Passwords and tokens are encrypted for this Windows account. Failed uploads remain queued.");
+
+        var schedule=Tab("Schedule");
+        var startAt=new Forms.DateTimePicker {Format=Forms.DateTimePickerFormat.Custom,CustomFormat="yyyy-MM-dd HH:mm",ShowUpDown=true,ShowCheckBox=true,Value=DateTime.Now.AddMinutes(2),Checked=false};
+        Row(schedule,"Start date/time",startAt);
+        using var registry=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
+        var startup=new Forms.CheckBox {Text="Open tray app when Windows starts (stopped)",AutoSize=true,Checked=registry?.GetValue("CJFingerService")!=null};Row(schedule,"",startup);
+        Note(schedule,"Always starts STOPPED, including after an update or Windows restart.\n\nSelect a future date and time, then click Start. Runs repeat every 30 minutes until stopped or closed. Save only saves settings and stops the schedule.");
+        tabs.SelectedIndex=2;
+
+        void Commit(bool startSchedule) {
+            var value=new Settings {ProgramPath=program.Text.Trim(),ExportDirectory=folder.Text.Trim(),Username=user.Text.Trim(),PasswordProtected=Settings.Protect(password.Text),TokenProtected=Settings.Protect(token.Text.Trim()),ServerUrl=server.Text.Trim(),EnableUpload=upload.Checked,AllowHttp=http.Checked,LookbackDays=(int)days.Value,DownloadTimeoutSeconds=(int)timeout.Value,OcrLanguage=language.Text.Trim(),ScheduleStartAt=startAt.Checked?startAt.Value:null};
+            try {
+                if(startSchedule) { _=TrayApp.FirstRun(value,DateTimeOffset.Now);value.Validate(false); }
+                else if(value.EnableUpload) _=UploadClient.BaseUri(value);
+                using var key=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
+                if(startup.Checked)key.SetValue("CJFingerService",$"\"{Environment.ProcessPath}\"");else key.DeleteValue("CJFingerService",false);
+                value.Save();Value=value;StartRequested=startSchedule;DialogResult=Forms.DialogResult.OK;Close();
+            } catch(Exception e) {Forms.MessageBox.Show(e.Message,"Check settings");}
+        }
+        save.Click+=(_,_)=>Commit(false);start.Click+=(_,_)=>Commit(true);AcceptButton=save;
     }
-    private static string SafeRead(string encrypted) { try { return Settings.Unprotect(encrypted); } catch { return ""; } }
+    private static string SafeRead(string encrypted) {try{return Settings.Unprotect(encrypted);}catch{return "";}}
 }

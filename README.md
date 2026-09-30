@@ -6,6 +6,8 @@ Download **CJFingerService-win-x64.zip** from [Releases](https://github.com/anub
 
 Version 1.2.0 and later checks GitHub Releases on startup and every 12 hours. Use **Check updates** in the tray menu to download and confirm installation. Existing settings and queued files are retained.
 
+Version 1.3.0 has an English-only, tabbed interface and a compressed standalone executable. It always opens **stopped**, including after an update. Select a future start date/time and click **Start** to enable the 30-minute schedule. **Save** does not start automation.
+
 - [Setup and usage](Finger_Service/README.md)
 - [Releasing updates](Finger_Service/UPDATES.md)
 - [Dummy application](Finger_Service/Dummy/README.md)

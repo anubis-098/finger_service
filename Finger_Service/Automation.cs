@@ -118,9 +118,9 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
         var main=Wait(()=>Window("Time Access Solution"),"export main window");
         stage("login");
         var login=Window("Login Session");
-        if(login==null) { Click(main,"1. ล็อกอินเข้าระบบ"); login=Wait(()=>Window("Login Session"),"login window"); }
+        if(login==null) { Click(main,"1. \u0e25\u0e47\u0e2d\u0e01\u0e2d\u0e34\u0e19\u0e40\u0e02\u0e49\u0e32\u0e23\u0e30\u0e1a\u0e1a"); login=Wait(()=>Window("Login Session"),"login window"); }
         Front(login);
-        Wait(()=>Controls(login,ControlType.Edit).Length>=2 || Text(login).Contains("ระบบล็อกอินเรียบร้อยแล้ว") ? login:null,"login form or existing session");
+        Wait(()=>Controls(login,ControlType.Edit).Length>=2 || Text(login).Contains("\u0e23\u0e30\u0e1a\u0e1a\u0e25\u0e47\u0e2d\u0e01\u0e2d\u0e34\u0e19\u0e40\u0e23\u0e35\u0e22\u0e1a\u0e23\u0e49\u0e2d\u0e22\u0e41\u0e25\u0e49\u0e27") ? login:null,"login form or existing session");
         var edits=Controls(login,ControlType.Edit).OrderBy(e=>e.Current.BoundingRectangle.Top).ToArray();
         if(edits.Length>=2) {
             var password=edits.FirstOrDefault(e=>e.Current.IsPassword)
@@ -134,15 +134,15 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
         }
         Wait(()=> {
             var text=Text(login);
-            if(text.Contains("ระบบล็อกอินเรียบร้อยแล้ว") || text.Contains("บันทึกสำเร็จ")) return login;
+            if(text.Contains("\u0e23\u0e30\u0e1a\u0e1a\u0e25\u0e47\u0e2d\u0e01\u0e2d\u0e34\u0e19\u0e40\u0e23\u0e35\u0e22\u0e1a\u0e23\u0e49\u0e2d\u0e22\u0e41\u0e25\u0e49\u0e27") || text.Contains("\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08")) return login;
             return null;
         },"successful login",45);
-        Click(login,"ใช้ Session นี้");
+        Click(login,"\u0e43\u0e0a\u0e49 Session \u0e19\u0e35\u0e49");
         DateTime? readySince=null;
         Wait(()=> {
             var popup=Window("Success");
             if(popup is not null) {
-                if(popup.Current.Name!="Success" || !Normalize(Text(popup)).Contains(Normalize("บันทึก Session แล้ว และโหลด Area เรียบร้อย")))
+                if(popup.Current.Name!="Success" || !Normalize(Text(popup)).Contains(Normalize("\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01 Session \u0e41\u0e25\u0e49\u0e27 \u0e41\u0e25\u0e30\u0e42\u0e2b\u0e25\u0e14 Area \u0e40\u0e23\u0e35\u0e22\u0e1a\u0e23\u0e49\u0e2d\u0e22")))
                     throw new InvalidOperationException("Unexpected Success dialog after session. Please inspect it manually.");
                 Click(popup,"OK");
                 Wait(()=>Native.FindWindow(processId,"Success")==IntPtr.Zero?main:null,"session confirmation closes",10);
@@ -162,22 +162,22 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
         var folder=Controls(main,ControlType.Edit).OrderByDescending(e=>e.Current.BoundingRectangle.Top).FirstOrDefault();
         if(folder==null || folder.Current.BoundingRectangle.Top < main.Current.BoundingRectangle.Top+main.Current.BoundingRectangle.Height*.7) throw new InvalidOperationException("Cannot locate export directory input.");
         if(!folder.TryGetCurrentPattern(ValuePattern.Pattern,out var folderPattern) || !string.Equals(((ValuePattern)folderPattern).Current.Value,settings.ExportDirectory,StringComparison.OrdinalIgnoreCase)) {
-            SetValue(folder,settings.ExportDirectory); Click(main,"บันทึกค่า");
+            SetValue(folder,settings.ExportDirectory); Click(main,"\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e04\u0e48\u0e32");
         }
         stage("download");
         var previous=Text(main);
-        Click(main,"2. ดึงข้อมูล");
+        Click(main,"2. \u0e14\u0e36\u0e07\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25");
         var changed=false;
         Wait(()=> {
             var text=Text(main); if(text!=previous) changed=true;
-            var download=Controls(main,ControlType.Button).FirstOrDefault(e=>Normalize(e.Current.Name)==Normalize("2. ดึงข้อมูล"));
+            var download=Controls(main,ControlType.Button).FirstOrDefault(e=>Normalize(e.Current.Name)==Normalize("2. \u0e14\u0e36\u0e07\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25"));
             if(download is not null && !download.Current.IsEnabled) changed=true;
-            var save=Controls(main,ControlType.Button).FirstOrDefault(e=>Normalize(e.Current.Name)==Normalize("3. บันทึกไฟล์ txt"));
+            var save=Controls(main,ControlType.Button).FirstOrDefault(e=>Normalize(e.Current.Name)==Normalize("3. \u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e44\u0e1f\u0e25\u0e4c txt"));
             return changed && text.Contains("status: ready",StringComparison.OrdinalIgnoreCase) && (save==null || save.Current.IsEnabled) ? main:null;
         },"fresh download status: ready",settings.DownloadTimeoutSeconds);
         stage("export");
         var before=Directory.GetFiles(settings.ExportDirectory,"*.txt").ToDictionary(p=>p,p=>new FileInfo(p).LastWriteTimeUtc);
-        var exportStart=DateTime.UtcNow; Click(main,"3. บันทึกไฟล์ txt");
+        var exportStart=DateTime.UtcNow; Click(main,"3. \u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e44\u0e1f\u0e25\u0e4c txt");
         string? stablePath=null; long stableLength=-1; DateTime stableSince=DateTime.UtcNow;
         var file=Wait(()=> {
             var files=Directory.GetFiles(settings.ExportDirectory,"*.txt").Select(p=>new FileInfo(p)).Where(f=>f.LastWriteTimeUtc>=exportStart.AddSeconds(-1) && (!before.TryGetValue(f.FullName,out var old)||old!=f.LastWriteTimeUtc)).ToArray();
