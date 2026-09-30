@@ -36,7 +36,7 @@ internal sealed class TrayApp : Forms.ApplicationContext {
             scheduled=false; ArmTimer(); UpdateStatus("Schedule stopped");
         };
         timer.Tick+=async(_,_)=> { timer.Stop(); if(scheduled && !running && DateTimeOffset.Now>=next) await Run(); else ArmTimer(); };
-        UpdateStatus("Stopped - set a future start time and click Start");
+        UpdateStatus("Stopped - choose a start time and click Start");
         OpenSettings();
     }
     private async Task CheckUpdates(bool interactive) {
@@ -54,7 +54,11 @@ internal sealed class TrayApp : Forms.ApplicationContext {
         } catch(Exception e) {Log("UPDATE FAILED "+e.Message);if(interactive) Forms.MessageBox.Show(e.Message,"Update failed");}
         finally {updating=false;if(!exiting) {checkUpdate.Text="Check updates";checkUpdate.Enabled=true;ArmTimer();}}
     }
-    internal static DateTimeOffset FirstRun(Settings value,DateTimeOffset now) => value.ScheduleStartAt is DateTime date && new DateTimeOffset(date)>now ? new DateTimeOffset(date) : throw new InvalidOperationException("Select a future start date and time before clicking Start.");
+    internal static DateTimeOffset FirstRun(Settings value,DateTimeOffset now) {
+        if(value.ScheduleStartAt is not DateTime date) throw new InvalidOperationException("Choose a start date and time before clicking Start.");
+        var selected=new DateTimeOffset(date);
+        return selected>now?selected:now;
+    }
     private void ArmTimer() {
         timer.Stop();
         if(!scheduled || running || updating) return;
@@ -94,7 +98,7 @@ internal sealed class TrayApp : Forms.ApplicationContext {
         if(running) { tray.ShowBalloonTip(3000,"CJ Finger Service","Wait for the active run to finish, or exit to stop the worker.",Forms.ToolTipIcon.Info); return; }
         using var form=new SettingsForm(settings);
         timer.Stop();
-        if(form.ShowDialog()==Forms.DialogResult.OK) { settings=form.Value; scheduled=form.StartRequested; if(scheduled) next=new DateTimeOffset(settings.ScheduleStartAt!.Value); UpdateStatus(scheduled?"Schedule started":"Settings saved - stopped"); }
+        if(form.ShowDialog()==Forms.DialogResult.OK) { settings=form.Value; scheduled=form.StartRequested; if(scheduled) next=FirstRun(settings,DateTimeOffset.Now); UpdateStatus(scheduled?"Schedule started":"Settings saved - stopped"); }
         ArmTimer();
     }
     private void Exit() {

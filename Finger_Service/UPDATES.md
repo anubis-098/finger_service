@@ -14,6 +14,6 @@ Clients validate the ZIP digest against GitHub's asset metadata and compare the 
 
 Clients check on startup and every 12 hours, and install only after confirmation. The helper waits for the old process to exit, backs up application files and installs the replacement. It attempts rollback if file installation fails. It does not detect every crash or behavioral regression after the new executable starts. Installation logs and backups remain under `%LOCALAPPDATA%\CJFingerService\updates`.
 
-Version 1.3.0 always restarts stopped. The user must select a future start date/time and click Start again after updating. User settings and queued exports are not replaced by an update.
+Version 1.3.0 always restarts stopped. The user must click Start again after updating. From 1.3.1, the current/past selected time starts immediately on that click; a future time schedules a later start. User settings and queued exports are not replaced by an update.
 
 API reference: https://docs.github.com/en/rest/releases/releases#get-the-latest-release

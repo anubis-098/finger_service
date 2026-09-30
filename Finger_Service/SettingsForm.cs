@@ -76,15 +76,15 @@ internal sealed class SettingsForm : Forms.Form {
         Note(serverTab,"Create a service token on the website's Fingerprint logs page. Passwords and tokens are encrypted for this Windows account. Failed uploads remain queued.");
 
         var schedule=Tab("Schedule");
-        var startAt=new Forms.DateTimePicker {Format=Forms.DateTimePickerFormat.Custom,CustomFormat="yyyy-MM-dd HH:mm",ShowUpDown=true,ShowCheckBox=true,Value=DateTime.Now.AddMinutes(2),Checked=false};
+        var startAt=new Forms.DateTimePicker {Format=Forms.DateTimePickerFormat.Custom,CustomFormat="yyyy-MM-dd HH:mm",ShowUpDown=true,Value=DateTime.Now};
         Row(schedule,"Start date/time",startAt);
         using var registry=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
         var startup=new Forms.CheckBox {Text="Open tray app when Windows starts (stopped)",AutoSize=true,Checked=registry?.GetValue("CJFingerService")!=null};Row(schedule,"",startup);
-        Note(schedule,"Always starts STOPPED, including after an update or Windows restart.\n\nSelect a future date and time, then click Start. Runs repeat every 30 minutes until stopped or closed. Save only saves settings and stops the schedule.");
+        Note(schedule,"Always opens STOPPED, including after an update or Windows restart.\n\nClick Start to begin now, or choose a future date/time to wait until then. If the selected time has already arrived, Start begins immediately. Runs repeat every 30 minutes. Save never starts automation.");
         tabs.SelectedIndex=2;
 
         void Commit(bool startSchedule) {
-            var value=new Settings {ProgramPath=program.Text.Trim(),ExportDirectory=folder.Text.Trim(),Username=user.Text.Trim(),PasswordProtected=Settings.Protect(password.Text),TokenProtected=Settings.Protect(token.Text.Trim()),ServerUrl=server.Text.Trim(),EnableUpload=upload.Checked,AllowHttp=http.Checked,LookbackDays=(int)days.Value,DownloadTimeoutSeconds=(int)timeout.Value,OcrLanguage=language.Text.Trim(),ScheduleStartAt=startAt.Checked?startAt.Value:null};
+            var value=new Settings {ProgramPath=program.Text.Trim(),ExportDirectory=folder.Text.Trim(),Username=user.Text.Trim(),PasswordProtected=Settings.Protect(password.Text),TokenProtected=Settings.Protect(token.Text.Trim()),ServerUrl=server.Text.Trim(),EnableUpload=upload.Checked,AllowHttp=http.Checked,LookbackDays=(int)days.Value,DownloadTimeoutSeconds=(int)timeout.Value,OcrLanguage=language.Text.Trim(),ScheduleStartAt=startAt.Value};
             try {
                 if(startSchedule) { _=TrayApp.FirstRun(value,DateTimeOffset.Now);value.Validate(false); }
                 else if(value.EnableUpload) _=UploadClient.BaseUri(value);

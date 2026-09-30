@@ -1,12 +1,14 @@
 namespace CJFingerService;
 internal static class SelfTest {
-    public static void StartupTest() {
+    public static void StartupTest(bool startMacro=false) {
         if(string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CJ_FINGER_SERVICE_DATA")))throw new InvalidOperationException("Set an isolated CJ_FINGER_SERVICE_DATA directory for the startup test.");
-        var report=Path.Combine(Settings.Root,"startup-result.txt");
+        var report=Path.Combine(Settings.Root,startMacro?"start-result.txt":"startup-result.txt");
         // Isolated test root only: emulate a legacy installation that used to auto-start.
-        var settings=new Settings {ProgramPath=Environment.ProcessPath!,Username="test-user",PasswordProtected=Settings.Protect("test-password"),ScheduleStartAt=DateTime.Now.AddMinutes(-5)};
+        Directory.CreateDirectory(Path.Combine(Settings.Root,"exports"));
+        var settings=new Settings {ProgramPath=Environment.ProcessPath!,ExportDirectory=Path.Combine(Settings.Root,"exports"),Username="test-user",PasswordProtected=Settings.Protect("test-password"),ScheduleStartAt=DateTime.Now.AddMinutes(-5)};
         var json=System.Text.Json.JsonSerializer.Serialize(settings);
         File.WriteAllText(Settings.ConfigPath,json[..^1]+",\"AutoStartSchedule\":true}");
+        using var fixture=startMacro?System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) {Arguments="--demo-target",UseShellExecute=false}):null;
         using var app=System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) {UseShellExecute=false})!;
         try {
             Task.Run(()=> {
@@ -25,18 +27,26 @@ internal static class SelfTest {
                     Native.Screenshot(handle,Path.Combine(Settings.Root,"startup-preview.png"));
                     throw new Exception("Unexpected schedule UI: "+string.Join(" | ",controls.Where(e=>!e.Current.IsPassword).Select(e=>e.Current.ControlType.ProgrammaticName+":"+e.Current.Name)));
                 }
-                var save=controls.Single(e=>e.Current.ControlType==System.Windows.Automation.ControlType.Button && e.Current.Name=="Save");
+                var save=controls.Single(e=>e.Current.ControlType==System.Windows.Automation.ControlType.Button && e.Current.Name==(startMacro?"Start":"Save"));
                 Native.PostMessage((IntPtr)save.Current.NativeWindowHandle,0x00F5,IntPtr.Zero,IntPtr.Zero);
                 for(var attempt=0;attempt<20 && Native.FindWindow(app.Id,"CJ Finger Service")!=IntPtr.Zero;attempt++)Thread.Sleep(250);
                 if(Native.FindWindow(app.Id,"CJ Finger Service")!=IntPtr.Zero)throw new Exception("Save did not close Settings.");
+                if(startMacro) {
+                    var resultPath=Path.Combine(Settings.Root,"worker-result.json");
+                    for(var attempt=0;attempt<120 && !File.Exists(resultPath);attempt++)Thread.Sleep(500);
+                    if(!File.Exists(resultPath))throw new Exception("Start did not complete a worker run.");
+                    using var result=System.Text.Json.JsonDocument.Parse(File.ReadAllText(resultPath));
+                    if(!result.RootElement.GetProperty("ok").GetBoolean())throw new Exception("Start worker failed: "+result.RootElement.GetProperty("message").GetString());
+                    return;
+                }
                 Thread.Sleep(12000);
                 var log=Path.Combine(Settings.Root,"service.log");
                 if(File.Exists(Path.Combine(Settings.Root,"worker-result.json")) || File.Exists(Path.Combine(Settings.Root,"worker-stage.txt")) || (File.Exists(log)&&File.ReadAllText(log).Contains("TASK START")))throw new Exception("Automation started without Start.");
                 if(File.ReadAllText(Settings.ConfigPath).Contains("AutoStartSchedule"))throw new Exception("Legacy auto-start flag was retained.");
             }).GetAwaiter().GetResult();
-            File.WriteAllText(report,"PASS: English settings, legacy auto-start ignored, past date does not run, Save remains stopped.");
+            File.WriteAllText(report,startMacro?"PASS: Start button with the default current time launches the macro and exports TXT successfully.":"PASS: English settings, legacy auto-start ignored, past date does not run, Save remains stopped.");
         }catch(Exception e){File.WriteAllText(report,"FAIL: "+e);Environment.ExitCode=1;}
-        finally{if(!app.HasExited)app.Kill(true);}
+        finally{if(!app.HasExited)app.Kill(true);if(fixture is not null && !fixture.HasExited)fixture.Kill(true);}
     }
     public static void AutomationTest() {
         var report=Path.Combine(Settings.Root,"automation-result.txt");
@@ -59,10 +69,11 @@ internal static class SelfTest {
     public static void Run() {
         UpdateTests.Run();
         var now=DateTimeOffset.Now;
-        foreach(var value in new[]{new Settings(),new Settings {ScheduleStartAt=now.LocalDateTime.AddMinutes(-1)}}) {
+        foreach(var value in new[]{new Settings()}) {
             var blocked=false;try {_=TrayApp.FirstRun(value,now);}catch(InvalidOperationException){blocked=true;}
-            if(!blocked)throw new Exception("Missing/past start time was accepted.");
+            if(!blocked)throw new Exception("Missing start time was accepted.");
         }
+        foreach(var date in new[]{now.LocalDateTime,now.LocalDateTime.AddMinutes(-1)})if(TrayApp.FirstRun(new Settings {ScheduleStartAt=date},now)!=now)throw new Exception("Current/past start should begin on explicit Start.");
         if(TrayApp.FirstRun(new Settings {ScheduleStartAt=now.LocalDateTime.AddMinutes(10)},now)!=now.AddMinutes(10))throw new Exception("Future schedule calculation failed.");
         var directory=Path.Combine(Settings.Root,"self-test"); Directory.CreateDirectory(directory);
         var good=Path.Combine(directory,"good.txt"); File.WriteAllText(good,"BE000609\t20260929\t0500\nBE000609\t20260928\t1641\n");
@@ -71,6 +82,6 @@ internal static class SelfTest {
         var rejected=false; try { ExportAutomation.ValidateFile(bad); } catch(InvalidOperationException) { rejected=true; }
         if(!rejected) throw new Exception("Invalid date was accepted.");
         if(Settings.Unprotect(Settings.Protect("self-test-value"))!="self-test-value") throw new Exception("DPAPI round trip failed.");
-        File.WriteAllText(Path.Combine(directory,"result.txt"),"PASS: future start required, valid TXT, invalid TXT rejection, DPAPI round trip.");
+        File.WriteAllText(Path.Combine(directory,"result.txt"),"PASS: current/past Start begins now, future Start waits, valid TXT, invalid TXT rejection, DPAPI round trip.");
     }
 }

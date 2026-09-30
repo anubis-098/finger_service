@@ -1,4 +1,4 @@
-# CJ Finger Service 1.3.0
+# CJ Finger Service 1.3.1
 
 Compact Windows x64 tray app for WEB8 NEXT exports and attendance-server uploads. The compressed, self-contained executable includes its .NET runtime. No separate runtime installation is required.
 
@@ -7,7 +7,7 @@ Compact Windows x64 tray app for WEB8 NEXT exports and attendance-server uploads
 1. Extract all four files from `CJFingerService-win-x64.zip` into a writable folder. Exit the previous app before launching the new executable.
 2. In **Export**, choose the real WEB8 executable and an existing TXT export folder. Enter its username and password. The default lookback is three days through today, using Thailand dates.
 3. In **Server**, enter the attendance website's base URL and service token. Create a token as Super Admin on the website's Fingerprint logs page. Use **Test connection**, then enable uploads. Remote HTTP requires explicit opt-in for a trusted test LAN; HTTPS encrypts traffic.
-4. In **Schedule**, enable the date/time field, select a future start time in the computer's local time, then click **Start**. The macro runs at that time and every 30 minutes afterwards.
+4. In **Schedule**, click **Start** to begin now, or choose a future date/time to start later. Times use the computer's local time. If the selected time has already arrived, clicking Start begins immediately. Runs repeat every 30 minutes afterwards.
 5. Use **Stop schedule** in the tray menu to prevent later runs. The active run finishes. Exit asks before stopping an active worker.
 
 **The app always opens stopped**, including after a Windows restart or software update. Saved settings, an old scheduled time, and legacy auto-start settings never start the macro. **Save** only saves settings and stops the schedule. Closing Settings without saving preserves an already active schedule. There is no Run now shortcut. **Retry uploads** is a separate, explicit action that sends pending files without running the export macro.
@@ -29,7 +29,7 @@ Exports and queued files are retained. At most ten queued files are uploaded per
 
 Source and releases: https://github.com/anubis-098/finger_service
 
-The app checks GitHub after startup and every 12 hours. Use **Check updates** to confirm downloading and installing a newer published release. Updates are blocked during an active task. The ZIP digest and executable version must match the GitHub release. Settings and pending files stay in place. After restarting, choose a new start time and click Start again.
+The app checks GitHub after startup and every 12 hours. Use **Check updates** to confirm downloading and installing a newer published release. Updates are blocked during an active task. The ZIP digest and executable version must match the GitHub release. Settings and pending files stay in place. After restarting, click Start again, or choose a future time before clicking Start.
 
 The first updater-capable release was 1.2.0. Earlier versions require one manual installation. Developer instructions are in `UPDATES.md` in the source repository.
 
