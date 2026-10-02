@@ -23,6 +23,9 @@ internal sealed class DemoTarget:Forms.Form {
         var folderSaved=false;
         var downloadAttempts=0;
         var exportAttempts=0;
+        var complete=false;
+        var statusMode=Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_STATUS") ?? "english";
+        var slowSeconds=int.TryParse(Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_DELAY"),out var delay)?Math.Clamp(delay,1,120):1;
         login.Click+=(_,_)=> {
             using var dialog=new Forms.Form { Text="Login Session",Width=650,Height=500,StartPosition=Forms.FormStartPosition.CenterParent };
             var username=new Forms.TextBox { Left=200,Top=100,Width=220,AccessibleName="Username" };
@@ -51,12 +54,18 @@ internal sealed class DemoTarget:Forms.Form {
             downloadAttempts++;
             if(Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_STALL")=="1" || (Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_RETRY")=="1" && downloadAttempts==1))return;
             if(from.Value.Date>to.Value.Date) { output.Text="From date must be on or before To date."; return; }
-            download.Enabled=false; export.Enabled=false; output.Text="loading";
-            await Task.Delay(1000);
-            output.Text=$"count: 2\r\nstatus: ready\r\nTEST01 {from.Value:yyyyMMdd} 2000\r\nTEST01 {to.Value:yyyyMMdd} 0500";
+            complete=false;
+            if(testRoot is not null)File.WriteAllText(Path.Combine(testRoot,"fixture-download-count.txt"),downloadAttempts.ToString());
+            download.Enabled=statusMode=="counts"; export.Enabled=statusMode=="counts";
+            output.Text=statusMode=="counts"?"rows loaded: 2\r\nlines prepared: 0":"status: loading";
+            await Task.Delay(slowSeconds*1000);
+            var status=statusMode=="counts"?"":statusMode=="thai"?"status: \u0e1e\u0e23\u0e49\u0e2d\u0e21\r\n":"status: ready\r\n";
+            output.Text=$"count: 2\r\nrows loaded: 2\r\nlines prepared: 2\r\n{status}TEST01 {from.Value:yyyyMMdd} 2000\r\nTEST01 {to.Value:yyyyMMdd} 0500";
+            complete=true;
             download.Enabled=true; export.Enabled=true;
         };
         export.Click+=(_,_)=> {
+            if(!complete){if(testRoot is not null)File.WriteAllText(Path.Combine(testRoot,"early-export.txt"),"Export was clicked before data finished loading.");return;}
             exportAttempts++;
             if(Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_RETRY")=="1" && exportAttempts==1)return;
             try {

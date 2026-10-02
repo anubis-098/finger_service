@@ -21,6 +21,31 @@ internal static class Native {
     }
     private delegate bool EnumWindowsCallback(IntPtr handle, IntPtr parameter);
     [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsCallback callback, IntPtr parameter);
+    [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr parent,EnumWindowsCallback callback,IntPtr parameter);
+    [DllImport("user32.dll",CharSet=CharSet.Unicode)] private static extern int GetClassName(IntPtr handle,StringBuilder text,int count);
+    [DllImport("user32.dll")] private static extern bool IsWindowEnabled(IntPtr handle);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr handle);
+    [DllImport("user32.dll",CharSet=CharSet.Unicode,EntryPoint="SendMessageTimeoutW")] private static extern IntPtr ReadTextMessage(IntPtr handle,uint message,IntPtr length,StringBuilder text,uint flags,uint timeout,out IntPtr result);
+    internal sealed record DownloadSnapshot(string Text,bool Responsive,bool? DownloadEnabled,bool? SaveEnabled);
+    internal static DownloadSnapshot ReadDownloadSnapshot(IntPtr parent) {
+        var output=new StringBuilder();var responsive=true;bool? download=null,save=null;
+        EnumChildWindows(parent,(handle,_)=> {
+            if(!IsWindowVisible(handle))return true;
+            var cls=new StringBuilder(256);GetClassName(handle,cls,cls.Capacity);
+            var caption=new StringBuilder(512);GetWindowText(handle,caption,caption.Capacity);
+            var name=RegexNormalize(caption.ToString());
+            if(name==RegexNormalize("2. \u0e14\u0e36\u0e07\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25"))download=IsWindowEnabled(parent)&&IsWindowEnabled(handle);
+            if(name==RegexNormalize("3. \u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e44\u0e1f\u0e25\u0e4c txt"))save=IsWindowEnabled(parent)&&IsWindowEnabled(handle);
+            if(cls.ToString().Contains("edit",StringComparison.OrdinalIgnoreCase) && GetWindowRect(handle,out var rect) && rect.Bottom-rect.Top>80) {
+                var text=new StringBuilder(131072);
+                if(ReadTextMessage(handle,0x000D,(IntPtr)text.Capacity,text,2,500,out _)==IntPtr.Zero)responsive=false;
+                else output.AppendLine(text.ToString());
+            }
+            return true;
+        },IntPtr.Zero);
+        return new(output.ToString(),responsive,download,save);
+    }
+    private static string RegexNormalize(string value)=>System.Text.RegularExpressions.Regex.Replace(value,@"\s+","").ToLowerInvariant();
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr handle, out uint processId);
     [DllImport("user32.dll",CharSet=CharSet.Unicode)] private static extern int GetWindowText(IntPtr handle, StringBuilder text, int count);
     internal static IntPtr FindWindow(int processId,string title) {

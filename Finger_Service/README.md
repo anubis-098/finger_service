@@ -1,4 +1,4 @@
-# CJ Finger Service 1.4.0
+# CJ Finger Service 1.4.1
 
 Compact Windows x64 tray app for WEB8 NEXT exports and attendance-server uploads. The compressed, self-contained executable includes its .NET runtime. No separate runtime installation is required.
 
@@ -18,7 +18,11 @@ The UI and documentation are English. Target-app captions remain compatible with
 
 Every export now clicks the target Save settings button, even when its folder already matches. Recognized Success confirmations are dismissed before download. The active-task window shows the current stage and offers Cancel and Exit. Double-click the tray icon to bring it back.
 
-A lost login-window click, directory confirmation, fresh-download wait and TXT export can be retried up to three attempts. Download retries use the configured timeout per attempt; export checks use 30 seconds per attempt. Before retrying an enabled download, the directory is saved again. A busy/disabled download button is not clicked again. Export is not repeated if a new or changed file already exists. Focus activation is attempted three times. Unknown dialogs, invalid credentials, locked desktops, invalid files and ambiguous multiple exports stop the task rather than being blindly acknowledged. A parent watchdog terminates a stuck worker even if a UI Automation call never returns.
+A lost login-window click, directory confirmation, fresh-download wait and TXT export can be retried up to three attempts. Download retries use the configured timeout per attempt; export checks use 30 seconds per attempt. A download is clicked again only when no activity was observed and its button is enabled. Once activity begins, timeout retries keep waiting without restarting it, including when WEB8 leaves its buttons enabled. Export is not repeated if a new or changed file already exists. Focus activation is attempted three times. Unknown dialogs, invalid credentials, locked desktops, invalid files and ambiguous multiple exports stop the task rather than being blindly acknowledged. A parent watchdog terminates a stuck worker even if a UI Automation call never returns.
+
+Download completion accepts English or Thai ready status (including the Thai wording in the supplied WEB8 screenshot), or matching `rows loaded` and `lines prepared` counts when no status line is provided. A later busy/error status overrides earlier ready text. Mismatched counts block export. Fresh activity, a responsive window and an enabled Save TXT button are required, followed by a two-second stable completion check. Native multiline log reads use a bounded timeout with UI Automation as fallback. Every five seconds the task window and service log report elapsed time, row/prepared counts and button readiness without recording employee preview data. This handles variable loading times instead of a fixed delay.
+
+For troubleshooting, use **Open logs** and look for `download: waiting ...`: `ready=False` means completion was not recognized; `saveEnabled=False` means the source program has not enabled export. These lines can be shared without sending employee preview contents or credentials.
 
 Cancel stops the current worker and scheduled repeats. It does not delete files or undo data that the server has already received. Retry uploads remains available for retained pending files. The app does not terminate WEB8 when cancelling, timing out or exiting.
 

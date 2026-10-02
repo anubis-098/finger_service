@@ -33,8 +33,8 @@ internal static class SelfTest {
                 if(Native.FindWindow(app.Id,"CJ Finger Service")!=IntPtr.Zero)throw new Exception("Save did not close Settings.");
                 if(control is not null) {
                     var stageFile=Path.Combine(Settings.Root,"worker-stage.txt");
-                    for(var attempt=0;attempt<90;attempt++){if(File.Exists(stageFile)&&File.ReadAllText(stageFile)=="download")break;Thread.Sleep(500);}
-                    if(!File.Exists(stageFile)||File.ReadAllText(stageFile)!="download")throw new Exception("Worker did not reach the simulated stuck download.");
+                    for(var attempt=0;attempt<90;attempt++){if(File.Exists(stageFile)&&File.ReadAllText(stageFile).StartsWith("download"))break;Thread.Sleep(500);}
+                    if(!File.Exists(stageFile)||!File.ReadAllText(stageFile).StartsWith("download"))throw new Exception("Worker did not reach the simulated stuck download.");
                     var taskWindow=System.Windows.Automation.AutomationElement.FromHandle(Native.FindWindow(app.Id,"Active task"));
                     var button=taskWindow.FindAll(System.Windows.Automation.TreeScope.Descendants,new System.Windows.Automation.PropertyCondition(System.Windows.Automation.AutomationElement.ControlTypeProperty,System.Windows.Automation.ControlType.Button)).Cast<System.Windows.Automation.AutomationElement>().Single(e=>e.Current.Name==control);
                     Native.PostMessage((IntPtr)button.Current.NativeWindowHandle,0x00F5,IntPtr.Zero,IntPtr.Zero);
@@ -84,13 +84,16 @@ internal static class SelfTest {
             var file=Task.Run(()=>new ExportAutomation(settings,stage=> { stages.Add(stage); File.WriteAllText(Path.Combine(Settings.Root,"test-stage.txt"),stage); },CancellationToken.None).Run()).GetAwaiter().GetResult();
             var today=TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTime.UtcNow,"SE Asia Standard Time").Date;
             var content=File.ReadAllText(file);
+            if(File.Exists(Path.Combine(Settings.Root,"early-export.txt")))throw new Exception("Export clicked before download completion.");
+            if(Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_RETRY")!="1" && File.ReadAllText(Path.Combine(Settings.Root,"fixture-download-count.txt"))!="1")throw new Exception("Active download was restarted.");
             if(!content.Contains(today.AddDays(-3).ToString("yyyyMMdd")) || !content.Contains(today.ToString("yyyyMMdd"))) throw new Exception("Date range mismatch");
-            if(!stages.Where(s=>!s.StartsWith("Retry ")).SequenceEqual(new[]{"login","select_dates","save_directory","download","export"})) throw new Exception("Unexpected stage order");
+            if(!stages.Where(s=>!s.StartsWith("Retry ") && !s.StartsWith("download:")).SequenceEqual(new[]{"login","select_dates","save_directory","download","export"})) throw new Exception("Unexpected stage order");
             File.WriteAllText(report,"PASS: UI Automation login, session, 3-day dates, wait ready, TXT export and validation.\n"+file);
         } catch(Exception e) { File.WriteAllText(report,"FAIL: "+e); try { fixture.Refresh(); Native.Screenshot(fixture.MainWindowHandle,Path.Combine(Settings.Root,"fixture-failure.png")); } catch { } Environment.ExitCode=1; }
         finally { if(!fixture.HasExited) fixture.Kill(true); }
     }
     public static void Run() {
+        DownloadProgressTests.Run();
         UpdateTests.Run();
         var now=DateTimeOffset.Now;
         foreach(var value in new[]{new Settings()}) {

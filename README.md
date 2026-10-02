@@ -11,6 +11,9 @@ Version 1.3 has an English-only, tabbed interface and a compressed standalone ex
 Version 1.4.0 always saves the export directory before downloading, retries stalled download/export steps up to three attempts, and adds an active-task window with Cancel and Exit. Cancelling stops the worker and schedule; exiting closes the tray process while leaving WEB8 open.
 
 - [Setup and usage](Finger_Service/README.md)
+Version 1.4.1 recognizes Thai and English download completion and matching loaded/prepared counts, waits for stable readiness before saving, and reports progress every five seconds. Downloads already in progress are not restarted. Tested with delayed fixtures; validate against your installed WEB8 version.
+
+- [Setup and usage](Finger_Service/README.md)
 - [Releasing updates](Finger_Service/UPDATES.md)
 - [Dummy application](Finger_Service/Dummy/README.md)
 

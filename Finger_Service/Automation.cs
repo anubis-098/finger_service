@@ -203,19 +203,42 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
         }
         SaveDirectory();
         Report("download");
-        var previous=Text(main);
+        var mainHandle=(IntPtr)main.Current.NativeWindowHandle;
+        Native.DownloadSnapshot ReadDownload() {
+            var snapshot=Native.ReadDownloadSnapshot(mainHandle);
+            if(!snapshot.Responsive)return snapshot;
+            // Native multiline text reads have a timeout and do not enumerate every preview row.
+            if(snapshot.Text.Length>0 && snapshot.SaveEnabled.HasValue && snapshot.DownloadEnabled.HasValue)return snapshot;
+            var text=snapshot.Text.Length>0?snapshot.Text:Text(main);
+            var buttons=Controls(main,ControlType.Button);
+            bool? Enabled(string caption)=>buttons.FirstOrDefault(e=>Normalize(e.Current.Name)==Normalize(caption))?.Current.IsEnabled;
+            return new(text,true,snapshot.DownloadEnabled ?? Enabled("2. \u0e14\u0e36\u0e07\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25"),snapshot.SaveEnabled ?? Enabled("3. \u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e44\u0e1f\u0e25\u0e4c txt"));
+        }
+        var previous=ReadDownload();
         void Download() { Click(main,"2. \u0e14\u0e36\u0e07\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25"); }
         Download();
-        var changed=false;
+        var observedActivity=false;
+        var watch=Stopwatch.StartNew();var nextReport=TimeSpan.Zero;
+        DateTime? readyAt=null;string? readySignature=null;
         Wait(()=> {
-            var text=Text(main); if(text!=previous) changed=true;
-            var download=Controls(main,ControlType.Button).FirstOrDefault(e=>Normalize(e.Current.Name)==Normalize("2. \u0e14\u0e36\u0e07\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25"));
-            if(download is not null && !download.Current.IsEnabled) changed=true;
-            var save=Controls(main,ControlType.Button).FirstOrDefault(e=>Normalize(e.Current.Name)==Normalize("3. \u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e44\u0e1f\u0e25\u0e4c txt"));
-            return changed && Regex.IsMatch(text,@"\bstatus\s*:\s*ready\b",RegexOptions.IgnoreCase) && save is not null && save.Current.IsEnabled ? main:null;
-        },"fresh download status: ready",settings.DownloadTimeoutSeconds,()=> {
-            var button=Controls(main,ControlType.Button).FirstOrDefault(e=>Normalize(e.Current.Name)==Normalize("2. \u0e14\u0e36\u0e07\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25"));
-            if(main.Current.IsEnabled && button is not null && button.Current.IsEnabled){SaveDirectory();Download();}
+            var snapshot=ReadDownload();
+            var progress=DownloadProgress.Parse(snapshot.Text);
+            if(!snapshot.Responsive || snapshot.DownloadEnabled==false || progress.Busy || snapshot.Text!=previous.Text)observedActivity=true;
+            if(progress.Failed)throw new InvalidOperationException("Download reported an error. Inspect the target log; export was not clicked.");
+            var ready=observedActivity && snapshot.Responsive && !progress.Busy && progress.Ready && snapshot.SaveEnabled==true && snapshot.DownloadEnabled!=false;
+            var signature=$"{progress.Rows}/{progress.Prepared}";
+            if(!ready || readySignature!=signature){readyAt=null;readySignature=signature;}
+            if(ready)readyAt ??=DateTime.UtcNow;
+            if(watch.Elapsed>=nextReport) {
+                Report($"download: waiting {watch.Elapsed.TotalSeconds:0}s; responsive={snapshot.Responsive}; rows={progress.Rows?.ToString() ?? "unknown"}; prepared={progress.Prepared?.ToString() ?? "unknown"}; ready={progress.Ready}; saveEnabled={snapshot.SaveEnabled?.ToString() ?? "unknown"}");
+                nextReport=watch.Elapsed+TimeSpan.FromSeconds(5);
+            }
+            return readyAt.HasValue && DateTime.UtcNow-readyAt.Value>=TimeSpan.FromSeconds(2)?main:null;
+        },"fresh completed download (Thai/English status or matching prepared counts)",settings.DownloadTimeoutSeconds,()=> {
+            var snapshot=ReadDownload();
+            // Never restart a download that has shown activity: the real exporter may keep buttons enabled.
+            if(!observedActivity && snapshot.Responsive && snapshot.DownloadEnabled==true) {SaveDirectory();previous=ReadDownload();Download();}
+            else Report("download: still waiting for the active download; no duplicate click sent");
         });
         Report("export");
         var before=Directory.GetFiles(settings.ExportDirectory,"*.txt").ToDictionary(p=>p,p=>new FileInfo(p).LastWriteTimeUtc);
