@@ -93,26 +93,106 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
             throw new InvalidOperationException("Export directory input verification failed.");
         }
     }
-    private void FillLogin(AutomationElement window,AutomationElement control,string value,string field) {
-        Front(window);
-        control.SetFocus(); Delay(200);
+    private sealed class LoginRetryException(string message) : Exception(message);
+    private (AutomationElement Username,AutomationElement Password) LoginFields(AutomationElement window) {
+        var edits=Controls(window,ControlType.Edit).Where(e=>e.Current.IsEnabled).ToArray();
+        string Label(AutomationElement e)=>Normalize(e.Current.Name+" "+(e.Current.LabeledBy?.Current.Name ?? ""));
+        var passwords=edits.Where(e=>e.Current.IsPassword || Label(e).Contains("password")).ToArray();
+        if(passwords.Length!=1)throw new LoginRetryException("Password selector is missing or ambiguous.");
+        var password=passwords[0];
+        var candidates=edits.Where(e=>!e.Current.IsPassword && !Automation.Compare(e,password)).ToArray();
+        var named=candidates.Where(e=>Label(e).Contains("username")).ToArray();
+        var username=named.Length==1?named[0]:named.Length==0 && candidates.Length==1?candidates[0]:null;
+        if(username is null)throw new LoginRetryException("Username selector is missing or ambiguous.");
+        if(username.Current.BoundingRectangle.IntersectsWith(password.Current.BoundingRectangle))
+            throw new LoginRetryException("Login inputs overlap; waiting for the form to settle.");
+        return (username,password);
+    }
+    private void VerifyUsername(AutomationElement control,string expected) {
+        for(var attempt=0;attempt<15;attempt++) {
+            cancel.ThrowIfCancellationRequested();
+            if(control.TryGetCurrentPattern(ValuePattern.Pattern,out var pattern) && ((ValuePattern)pattern).Current.Value==expected)return;
+            if(control.TryGetCurrentPattern(TextPattern.Pattern,out var text) && ((TextPattern)text).DocumentRange.GetText(-1).TrimEnd('\r','\n')==expected)return;
+            Delay(100);
+        }
+        throw new LoginRetryException("Username verification failed; credentials were not submitted.");
+    }
+    private void FillLogin(AutomationElement window,string value,string field) {
+        var fields=LoginFields(window);
+        var control=field=="Username"?fields.Username:fields.Password;
         void VerifyFocus() {
-            if(Native.GetForegroundWindow()!=(IntPtr)window.Current.NativeWindowHandle || !control.Current.HasKeyboardFocus)
-                throw new InvalidOperationException($"FOCUS_LOST: {field} input is not focused. No further credentials were typed.");
+            cancel.ThrowIfCancellationRequested(); Native.AssertDesktop();
+            var focused=AutomationElement.FocusedElement;
+            if(Native.GetForegroundWindow()!=(IntPtr)window.Current.NativeWindowHandle || !control.Current.HasKeyboardFocus || focused is null || !Automation.Compare(control,focused))
+                throw new LoginRetryException($"FOCUS_LOST: {field} input is not focused. Typing stopped.");
+        }
+        var focusedCorrectly=false;
+        for(var attempt=0;attempt<3 && !focusedCorrectly;attempt++) {
+            Front(window);
+            try {
+                try { control.SetFocus(); }
+                catch(InvalidOperationException) { throw new LoginRetryException("Login field could not receive focus."); }
+                Delay(150);
+                var bounds=control.Current.BoundingRectangle;
+                if(bounds.IsEmpty || bounds.Width<8 || bounds.Height<8)throw new LoginRetryException("Login field is not ready.");
+                Native.Click((IntPtr)window.Current.NativeWindowHandle,bounds.X+bounds.Width/2,bounds.Y+bounds.Height/2);
+                for(var check=0;check<4;check++){Delay(100);VerifyFocus();}
+                focusedCorrectly=true;
+            } catch(LoginRetryException) { if(attempt==2)throw; Delay(300); }
         }
         // Keyboard events work with embedded web login forms; ValuePattern can
         // display text without updating their internal form state. Never read back a password.
         Native.ReplaceFocusedText(value,VerifyFocus);
         Delay(350);
-        if(field=="Username" && control.TryGetCurrentPattern(ValuePattern.Pattern,out var pattern)) {
-            for(var attempt=0;attempt<15;attempt++) {
-                if(((ValuePattern)pattern).Current.Value==value) return;
-                Delay(100);
+        VerifyFocus();
+        if(field=="Username")VerifyUsername(control,value);
+        else if(Native.EditTextLength((IntPtr)control.Current.NativeWindowHandle) is int length && length!=value.Length)
+            throw new LoginRetryException("Password entry length verification failed; credentials were not submitted.");
+    }
+    private bool LoginSucceeded(AutomationElement window) {
+        var text=Text(window);
+        return (text.Contains("\u0e23\u0e30\u0e1a\u0e1a\u0e25\u0e47\u0e2d\u0e01\u0e2d\u0e34\u0e19\u0e40\u0e23\u0e35\u0e22\u0e1a\u0e23\u0e49\u0e2d\u0e22\u0e41\u0e25\u0e49\u0e27") || text.Contains("\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08")) &&
+            Controls(window,ControlType.Button).Any(e=>Normalize(e.Current.Name)==Normalize("\u0e43\u0e0a\u0e49 Session \u0e19\u0e35\u0e49") && e.Current.IsEnabled);
+    }
+    private static bool LoginRejected(string text) =>
+        Regex.IsMatch(text,@"login failed|invalid (username|password|credentials)|incorrect (username|password)|authentication failed",RegexOptions.IgnoreCase) ||
+        text.Contains("\u0e23\u0e2b\u0e31\u0e2a\u0e1c\u0e48\u0e32\u0e19\u0e44\u0e21\u0e48\u0e16\u0e39\u0e01\u0e15\u0e49\u0e2d\u0e07") ||
+        text.Contains("\u0e40\u0e02\u0e49\u0e32\u0e2a\u0e39\u0e48\u0e23\u0e30\u0e1a\u0e1a\u0e44\u0e21\u0e48\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08");
+    private AutomationElement Authenticate() {
+        for(var attempt=1;attempt<=3;attempt++) {
+            var login=Window("Login Session") ?? throw new InvalidOperationException("Login window closed unexpectedly.");
+            try {
+                if(LoginSucceeded(login))return login;
+                if(attempt>1)Report($"Retry {attempt}/3: login; reacquiring both fields");
+                Wait(()=>Controls(login,ControlType.Edit).Count(e=>e.Current.IsEnabled)>=2?login:null,"editable login form",10);
+                FillLogin(login,settings.Username,"Username");
+                FillLogin(login,Settings.Unprotect(settings.PasswordProtected),"Password");
+                VerifyUsername(LoginFields(login).Username,settings.Username);
+                Click(login,"Log in");
+                var submittedAt=DateTime.UtcNow;
+                Wait(()=> {
+                    if(LoginSucceeded(login))return login;
+                    foreach(var caption in new[]{"Error","Login failed","Authentication failed"}) {
+                        var popup=Window(caption);
+                        if(popup is not null && LoginRejected(Text(popup)) && Controls(popup,ControlType.Button).Any(e=>Normalize(e.Current.Name)=="ok" && e.Current.IsEnabled)) {
+                            Click(popup,"OK");
+                            throw new LoginRetryException("Login was rejected by a recognized dialog.");
+                        }
+                    }
+                    var text=Text(login);
+                    if(DateTime.UtcNow-submittedAt>TimeSpan.FromSeconds(2) && LoginRejected(text) &&
+                        Controls(login,ControlType.Button).Any(e=>Normalize(e.Current.Name)=="login" && e.Current.IsEnabled))
+                        throw new LoginRetryException("Login was rejected.");
+                    return null;
+                },"successful login",45);
+                return login;
+            } catch(Exception e) when(e is LoginRetryException or ElementNotAvailableException or TimeoutException || e is InvalidOperationException && e.Message.StartsWith("FOCUS_LOST:")) {
+                Report($"Retry check {attempt}/3: login incomplete ({e.GetType().Name}); no session selected");
+                if(attempt==3)throw new InvalidOperationException("LOGIN_FAILED: stopped after 3 attempts. Check credentials, login fields and the target window. No session was selected.");
+                Delay(1500);
             }
-            // Some web providers report an empty/stale value. The login success
-            // message below is the authoritative verification, not that readback.
-            File.AppendAllText(Path.Combine(Settings.Root,"service.log"),$"{DateTimeOffset.Now:O} Username readback unavailable after keyboard entry; checking login result instead.\n");
         }
+        throw new InvalidOperationException("LOGIN_FAILED");
     }
     private static void SetDate(AutomationElement control,DateTime date) {
         if(!control.TryGetCurrentPattern(ValuePattern.Pattern,out var pattern) || ((ValuePattern)pattern).Current.IsReadOnly) throw new InvalidOperationException("Date picker does not expose an editable ValuePattern in this program version.");
@@ -142,24 +222,7 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
             void ClickLogin() {if(main.Current.IsEnabled)Click(main,"1. \u0e25\u0e47\u0e2d\u0e01\u0e2d\u0e34\u0e19\u0e40\u0e02\u0e49\u0e32\u0e23\u0e30\u0e1a\u0e1a");}
             ClickLogin();login=Wait(()=>Window("Login Session"),"login window",10,ClickLogin);
         }
-        Front(login);
-        Wait(()=>Controls(login,ControlType.Edit).Length>=2 || Text(login).Contains("\u0e23\u0e30\u0e1a\u0e1a\u0e25\u0e47\u0e2d\u0e01\u0e2d\u0e34\u0e19\u0e40\u0e23\u0e35\u0e22\u0e1a\u0e23\u0e49\u0e2d\u0e22\u0e41\u0e25\u0e49\u0e27") ? login:null,"login form or existing session");
-        var edits=Controls(login,ControlType.Edit).OrderBy(e=>e.Current.BoundingRectangle.Top).ToArray();
-        if(edits.Length>=2) {
-            var password=edits.FirstOrDefault(e=>e.Current.IsPassword)
-                ?? edits.FirstOrDefault(e=>e.Current.Name.Contains("password",StringComparison.OrdinalIgnoreCase))
-                ?? (edits.Length==2?edits[1]:throw new InvalidOperationException("Cannot uniquely identify Password input."));
-            var usernames=edits.Where(e=>!Automation.Compare(e,password)).ToArray();
-            var username=usernames.FirstOrDefault(e=>e.Current.Name.Contains("username",StringComparison.OrdinalIgnoreCase))
-                ?? (usernames.Length==1?usernames[0]:throw new InvalidOperationException("Cannot uniquely identify Username input."));
-            FillLogin(login,username,settings.Username,"Username");
-            FillLogin(login,password,Settings.Unprotect(settings.PasswordProtected),"Password"); Click(login,"Log in");
-        }
-        Wait(()=> {
-            var text=Text(login);
-            if(text.Contains("\u0e23\u0e30\u0e1a\u0e1a\u0e25\u0e47\u0e2d\u0e01\u0e2d\u0e34\u0e19\u0e40\u0e23\u0e35\u0e22\u0e1a\u0e23\u0e49\u0e2d\u0e22\u0e41\u0e25\u0e49\u0e27") || text.Contains("\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08")) return login;
-            return null;
-        },"successful login",45);
+        login=Authenticate();
         Click(login,"\u0e43\u0e0a\u0e49 Session \u0e19\u0e35\u0e49");
         DateTime? readySince=null;
         Wait(()=> {

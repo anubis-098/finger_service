@@ -16,7 +16,7 @@ internal static class Program {
         if(args.Contains("--cancel-test")) { SelfTest.StartupTest(true,"Cancel"); Environment.Exit(Environment.ExitCode); return; }
         if(args.Contains("--exit-test")) { SelfTest.StartupTest(true,"Exit"); Environment.Exit(Environment.ExitCode); return; }
         if(args.Contains("--demo-target")) { Forms.Application.Run(new DemoTarget()); return; }
-        if(args.Contains("--automation-test")) { SelfTest.AutomationTest(); return; }
+        if(args.Contains("--automation-test")) { SelfTest.AutomationTest(); Environment.Exit(Environment.ExitCode); return; }
         if(args.Contains("--set-password")) { var settings=Settings.Load(); settings.PasswordProtected=Settings.Protect(Console.In.ReadToEnd().TrimEnd('\r','\n')); settings.Save(); return; }
         // UI Automation providers may leave COM threads alive after completion.
         // This isolated worker owns no UI; exit after its result has been flushed.

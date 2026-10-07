@@ -17,7 +17,9 @@ internal static class Native {
         try { Send(0x11,0,0); Send(0x41,0,0); Send(0x41,0,2); }
         finally { Send(0x11,0,2); }
         verifyFocus(); Send(0x08,0,0); Send(0x08,0,2);
-        foreach(var character in value) { verifyFocus(); Send(0,character,4); Send(0,character,6); Thread.Sleep(12); }
+        Thread.Sleep(100);
+        foreach(var character in value) { verifyFocus(); Send(0,character,4); Send(0,character,6); Thread.Sleep(25); }
+        verifyFocus();
     }
     private delegate bool EnumWindowsCallback(IntPtr handle, IntPtr parameter);
     [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsCallback callback, IntPtr parameter);
@@ -65,6 +67,12 @@ internal static class Native {
     [DllImport("user32.dll")] internal static extern bool CloseDesktop(IntPtr desktop);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] internal static extern bool GetUserObjectInformation(IntPtr obj, int index, StringBuilder text, int length, out int needed);
     [DllImport("user32.dll",SetLastError=true)] private static extern IntPtr SendMessageTimeout(IntPtr hwnd,uint message,IntPtr wparam,IntPtr lparam,uint flags,uint timeout,out IntPtr result);
+    internal static int? EditTextLength(IntPtr handle) {
+        if(handle==IntPtr.Zero)return null;
+        var cls=new StringBuilder(256);GetClassName(handle,cls,cls.Capacity);
+        if(!cls.ToString().Contains("edit",StringComparison.OrdinalIgnoreCase))return null;
+        return SendMessageTimeout(handle,0x000E,IntPtr.Zero,IntPtr.Zero,2,500,out var length)!=IntPtr.Zero?length.ToInt32():null;
+    }
     [StructLayout(LayoutKind.Sequential)] internal struct RECT { public int Left, Top, Right, Bottom; }
     internal static void AssertDesktop() {
         var desktop = OpenInputDesktop(0, false, 1);

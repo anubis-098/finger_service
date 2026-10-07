@@ -81,7 +81,21 @@ internal static class SelfTest {
             Thread.Sleep(2000);
             var settings=new Settings { ProgramPath=target,ExportDirectory=Path.Combine(Settings.Root,"exports"),Username="test-user",PasswordProtected=Settings.Protect("test-password"),LookbackDays=3,DownloadTimeoutSeconds=30 };
             var stages=new List<string>();
-            var file=Task.Run(()=>new ExportAutomation(settings,stage=> { stages.Add(stage); File.WriteAllText(Path.Combine(Settings.Root,"test-stage.txt"),stage); },CancellationToken.None).Run()).GetAwaiter().GetResult();
+            string file;
+            try {
+                file=Task.Run(()=>new ExportAutomation(settings,stage=> { stages.Add(stage); File.WriteAllText(Path.Combine(Settings.Root,"test-stage.txt"),stage); },CancellationToken.None).Run()).GetAwaiter().GetResult();
+            } catch(InvalidOperationException e) when(Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_LOGIN")=="always-fail" && e.Message.StartsWith("LOGIN_FAILED:")) {
+                if(File.ReadAllText(Path.Combine(Settings.Root,"fixture-login-count.txt"))!="3" || stages.Contains("select_dates") || Directory.GetFiles(settings.ExportDirectory).Length!=0)
+                    throw new Exception("Login failure did not stop after exactly three submissions.");
+                File.WriteAllText(report,"PASS: login failure stopped after three submissions without selecting a session or exporting.");return;
+            }
+            if(Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_LOGIN")=="always-fail")throw new Exception("Repeated login failure unexpectedly succeeded.");
+            if(File.Exists(Path.Combine(Settings.Root,"invalid-login-submit.txt")))throw new Exception("Unverified credentials reached submit.");
+            var loginMode=Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_LOGIN");
+            if(loginMode is "focus" or "clear") {
+                if(!File.Exists(Path.Combine(Settings.Root,"login-disturbed.txt")) || !stages.Any(s=>s.StartsWith("Retry 2/3: login")))throw new Exception("Injected input failure did not trigger credential refill.");
+            }
+            if(loginMode is "reject" or "modal" && File.ReadAllText(Path.Combine(Settings.Root,"fixture-login-count.txt"))!="2")throw new Exception("Login rejection was not retried exactly once.");
             var today=TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTime.UtcNow,"SE Asia Standard Time").Date;
             var content=File.ReadAllText(file);
             if(File.Exists(Path.Combine(Settings.Root,"early-export.txt")))throw new Exception("Export clicked before download completion.");

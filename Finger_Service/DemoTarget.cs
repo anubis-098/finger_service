@@ -37,8 +37,31 @@ internal sealed class DemoTarget:Forms.Form {
             dialog.Controls.Add(new Forms.Label { Left=70,Top=153,AutoSize=true,Text="Password" });
             var error=new Forms.Label { Left=70,Top=245,AutoSize=true,ForeColor=Color.Firebrick };
             dialog.Controls.Add(error);
+            var loginMode=Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_LOGIN") ?? "";
+            var loginAttempts=0;
+            var disturbed=false;
+            username.TextChanged+=(_,_)=> {
+                if(!disturbed && username.Text.Length>=2 && loginMode=="focus") {
+                    disturbed=true; password.Focus();
+                    if(testRoot is not null)File.WriteAllText(Path.Combine(testRoot,"login-disturbed.txt"),"focus");
+                } else if(!disturbed && username.Text=="test-user" && loginMode=="clear") {
+                    disturbed=true;username.Clear();
+                    if(testRoot is not null)File.WriteAllText(Path.Combine(testRoot,"login-disturbed.txt"),"clear");
+                }
+            };
             submit.Click+=(_,_)=> {
-                if(username.Text!="test-user" || password.Text!="test-password") { error.Text="Use test-user / test-password"; return; }
+                loginAttempts++;
+                if(testRoot is not null)File.WriteAllText(Path.Combine(testRoot,"fixture-login-count.txt"),loginAttempts.ToString());
+                if(username.Text!="test-user" || password.Text!="test-password") {
+                    if(testRoot is not null)File.WriteAllText(Path.Combine(testRoot,"invalid-login-submit.txt"),"Incomplete or wrong fields were submitted.");
+                    error.Text="Invalid credentials";return;
+                }
+                if(loginMode=="always-fail" || ((loginMode=="reject" || loginMode=="modal") && loginAttempts==1)) {
+                    username.Clear();password.Clear();
+                    if(loginMode=="modal")Forms.MessageBox.Show(dialog,"Invalid credentials","Error",Forms.MessageBoxButtons.OK);
+                    else error.Text="Login failed";
+                    return;
+                }
                 error.Text="";
                 username.Visible=password.Visible=submit.Visible=false;
                 dialog.Controls.Add(new Forms.Label { Left=50,Top=70,AutoSize=true,Text="\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08 \u0e23\u0e30\u0e1a\u0e1a\u0e25\u0e47\u0e2d\u0e01\u0e2d\u0e34\u0e19\u0e40\u0e23\u0e35\u0e22\u0e1a\u0e23\u0e49\u0e2d\u0e22\u0e41\u0e25\u0e49\u0e27" }); use.Enabled=true;
