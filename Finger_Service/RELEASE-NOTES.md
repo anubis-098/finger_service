@@ -1,13 +1,27 @@
-## Finger Service 1.4.3
+## Finger Service 1.4.4
 
-Adds optional native Ubuntu Tesseract OCR for Finger Service running under Wine.
+Fixes `System.NotImplementedException` in `UiaFind / AutomationElement.FindAll`
+when the export macro runs under Wine on Ubuntu + Xfce.
 
-- Download **CJFingerService-win-x64.zip** for the application (also used by the existing Windows updater).
-- Ubuntu / Xfce users must additionally download and extract **CJFingerService-UbuntuOCR.zip**, then follow `ubuntu/README.md`.
-- Install Python 3, Tesseract and Thai/English language data; start the local bridge and paste its token into Settings > Export > Local OCR token. Enable Ubuntu / Wine OCR.
-- Screenshots are processed locally on 127.0.0.1; requests require a token and have image-size/time limits.
-- The application still opens stopped. Existing Windows OCR remains the default.
+- Wine is detected automatically. The Ubuntu option also explicitly selects the new backend.
+- The export workflow bypasses Windows UI Automation, using native Win32 window controls and local OCR for browser-rendered content.
+- Native login fields are verified before typing and after entry. Browser fallback detects input borders below OCR labels, checks the caret, verifies username text and counts password masking characters before submission.
+- Login retries are bounded to three attempts. Unknown/ambiguous fields stop safely.
+- Date selection, directory saving, download readiness and TXT validation use the Wine backend too.
+- Windows retains its existing UI Automation backend.
 
-This changes the OCR engine only. Full WEB8 automation, UI Automation, login, and window focus under Wine still require testing on the target Ubuntu machine. Thai text must render correctly before OCR can read it. The Windows PowerShell updater is not guaranteed to run under Wine; Ubuntu users should replace the application files manually after exiting it.
+### Upgrade
 
-Validation: Release build and Python bridge unit tests passed. No end-to-end WEB8-on-Ubuntu validation has been completed.
+Exit Finger Service and replace the files from **CJFingerService-win-x64.zip**.
+Keep the existing settings and export folders. Restart the Ubuntu OCR bridge,
+then select Settings > Export > Ubuntu / Wine and retain your Local OCR token.
+The 1.4.3 OCR bridge is compatible; first-time users also need
+**CJFingerService-UbuntuOCR.zip** and its setup instructions.
+Under Wine, install manually; the PowerShell-based Windows updater is not guaranteed to work.
+
+### Validation and limits
+
+- Release build and self-tests passed, including login-field detection against the provided WEB8 screenshot.
+- The native backend completed the Dummy login/date/download/TXT workflow on Windows with UI Automation bypassed.
+- Injected focus loss and login rejection recovered; repeated rejection stopped after three submissions without exporting.
+- Actual Ubuntu + Wine + WEB8 end-to-end execution is not yet verified. Embedded-browser login requires Wine to expose a caret and correctly render the input fields; unverifiable inputs stop rather than typing blindly.

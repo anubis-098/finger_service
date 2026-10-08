@@ -221,6 +221,7 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
         throw new InvalidOperationException($"Date picker verification failed: received '{actual}', expected {date:yyyy-MM-dd}; culture {CultureInfo.CurrentCulture.Name}.");
     }
     public string Run() {
+        if(settings.UseUbuntuOcr || Native.IsWine) return new WineExportAutomation(settings,stage,cancel).Run();
         settings.Validate(false); Native.AssertDesktop();
         var processName=Path.GetFileNameWithoutExtension(settings.ProgramPath);
         var candidates=Process.GetProcessesByName(processName).Where(p=> { try { return string.Equals(p.MainModule?.FileName,settings.ProgramPath,StringComparison.OrdinalIgnoreCase) && p.MainWindowTitle.Contains("Time Access Solution"); } catch { return false; } }).ToArray();

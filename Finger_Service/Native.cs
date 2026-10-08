@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Drawing;
 namespace CJFingerService;
-internal static class Native {
+internal static partial class Native {
     [StructLayout(LayoutKind.Sequential)] private struct Input { public uint type; public InputUnion data; }
     [StructLayout(LayoutKind.Explicit)] private struct InputUnion { [FieldOffset(0)] public KeyboardInput keyboard; [FieldOffset(0)] public MouseInput mouse; }
     [StructLayout(LayoutKind.Sequential)] private struct KeyboardInput { public ushort key,scan; public uint flags,time; public UIntPtr extra; }

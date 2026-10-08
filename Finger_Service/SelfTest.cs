@@ -80,6 +80,7 @@ internal static class SelfTest {
         try {
             Thread.Sleep(2000);
             var settings=new Settings { ProgramPath=target,ExportDirectory=Path.Combine(Settings.Root,"exports"),Username="test-user",PasswordProtected=Settings.Protect("test-password"),LookbackDays=3,DownloadTimeoutSeconds=30 };
+            settings.UseUbuntuOcr=Environment.GetEnvironmentVariable("CJ_FINGER_TEST_WINE")=="1";
             var stages=new List<string>();
             string file;
             try {
@@ -102,11 +103,12 @@ internal static class SelfTest {
             if(Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_RETRY")!="1" && File.ReadAllText(Path.Combine(Settings.Root,"fixture-download-count.txt"))!="1")throw new Exception("Active download was restarted.");
             if(!content.Contains(today.AddDays(-3).ToString("yyyyMMdd")) || !content.Contains(today.ToString("yyyyMMdd"))) throw new Exception("Date range mismatch");
             if(!stages.Where(s=>!s.StartsWith("Retry ") && !s.StartsWith("download:")).SequenceEqual(new[]{"login","select_dates","save_directory","download","export"})) throw new Exception("Unexpected stage order");
-            File.WriteAllText(report,"PASS: UI Automation login, session, 3-day dates, wait ready, TXT export and validation.\n"+file);
+            File.WriteAllText(report,$"PASS: {(settings.UseUbuntuOcr?"Wine native":"UI Automation")} login, session, 3-day dates, wait ready, TXT export and validation.\n"+file);
         } catch(Exception e) { File.WriteAllText(report,"FAIL: "+e); try { fixture.Refresh(); Native.Screenshot(fixture.MainWindowHandle,Path.Combine(Settings.Root,"fixture-failure.png")); } catch { } Environment.ExitCode=1; }
         finally { if(!fixture.HasExited) fixture.Kill(true); }
     }
     public static void Run() {
+        WineTests.Run();
         DownloadProgressTests.Run();
         UpdateTests.Run();
         var now=DateTimeOffset.Now;

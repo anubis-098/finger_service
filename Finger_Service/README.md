@@ -1,8 +1,10 @@
-# CJ Finger Service 1.4.3
+# CJ Finger Service 1.4.4
 
 Ubuntu / Xfce with Wine: see [local Tesseract OCR setup](ubuntu/README.md).
-The Ubuntu OCR option replaces Windows OCR only; full Wine automation needs
-validation against your actual export application.
+Wine is detected automatically and uses native window controls plus local OCR,
+bypassing Windows UI Automation (including UiaFind / FindAll). Browser login
+uses detected input borders, caret checks, username OCR and password-mask count.
+Full Wine compatibility still needs validation against your actual export application.
 
 Compact Windows x64 tray app for WEB8 NEXT exports and attendance-server uploads. The compressed, self-contained executable includes its .NET runtime. No separate runtime installation is required.
 

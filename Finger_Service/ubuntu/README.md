@@ -1,8 +1,10 @@
 # Ubuntu / Xfce OCR bridge
 
 This adds native Ubuntu Tesseract OCR to the Windows Finger Service running
-under Wine. It does not port Windows UI Automation, credential protection,
-mouse/keyboard handling or the updater to Linux. Those features still depend on
+under Wine. Version 1.4.4 detects Wine and bypasses Windows UI Automation entirely
+for the export workflow. Native Win32 controls handle buttons, dates, editable
+text and download status; local OCR handles browser-rendered text and buttons.
+Credential protection, mouse/keyboard handling and the updater still depend on
 Wine compatibility. Use an unlocked Xfce desktop and test with Dummy before WEB8.
 Text must render correctly on screen: OCR cannot recover square missing glyphs.
 
@@ -64,5 +66,21 @@ results stop the step instead of clicking an arbitrary location.
 Unit tests use simulated OCR output. A successful build or unit test does not
 prove the full WEB8 workflow works under Wine; validate login, window focus,
 Thai rendering, button recognition and export on the actual Ubuntu machine.
+
+## Wine login checks (1.4.4)
+
+The native-control workflow is also exercised against Dummy on Windows with UI
+Automation bypassed. For an embedded browser, the fallback requires exactly one
+Username label and one Password label, visible bordered inputs and a caret
+inside the clicked field before each character is typed. Username OCR must
+match exactly; the password field must show the expected number of masked
+characters. Missing or ambiguous verification stops the step instead of typing
+blindly. Login failures retry at most three times. If Wine's embedded browser
+does not expose a caret, the program stops with a specific FOCUS_LOST message;
+do not disable this check or substitute fixed coordinates.
+
+The OCR bridge from 1.4.3 is compatible; this fix primarily replaces the .exe.
+On Wine, exit Finger Service and replace the application files manually rather
+than relying on the Windows PowerShell updater.
 
 Engine reference: https://tesseract-ocr.github.io/tessdoc/Command-Line-Usage.html
