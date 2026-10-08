@@ -59,6 +59,8 @@ internal sealed class SettingsForm : Forms.Form {
         var days=new Forms.NumericUpDown {Minimum=0,Maximum=31,Value=Math.Clamp(initial.LookbackDays,0,31)}; Row(export,"Lookback days",days);
         var timeout=new Forms.NumericUpDown {Minimum=30,Maximum=1800,Increment=30,Value=Math.Clamp(initial.DownloadTimeoutSeconds,30,1800)};Row(export,"Timeout (seconds)",timeout);
         var language=Field(export,"Target OCR language",initial.OcrLanguage);
+        var ubuntuOcr=new Forms.CheckBox {Text="Ubuntu / Wine (local Tesseract bridge)",Checked=initial.UseUbuntuOcr,AutoSize=true}; Row(export,"OCR engine",ubuntuOcr);
+        var ocrToken=Field(export,"Local OCR token",initial.OcrBridgeToken,true);
         Note(export,"Keep the Windows session unlocked. The target export application may come to the foreground.");
 
         var serverTab=Tab("Server");
@@ -86,6 +88,9 @@ internal sealed class SettingsForm : Forms.Form {
         void Commit(bool startSchedule) {
             var value=new Settings {ProgramPath=program.Text.Trim(),ExportDirectory=folder.Text.Trim(),Username=user.Text.Trim(),PasswordProtected=Settings.Protect(password.Text),TokenProtected=Settings.Protect(token.Text.Trim()),ServerUrl=server.Text.Trim(),EnableUpload=upload.Checked,AllowHttp=http.Checked,LookbackDays=(int)days.Value,DownloadTimeoutSeconds=(int)timeout.Value,OcrLanguage=language.Text.Trim(),ScheduleStartAt=startAt.Value};
             try {
+                value.UseUbuntuOcr=ubuntuOcr.Checked;
+                value.OcrBridgeToken=ocrToken.Text.Trim();
+                if(value.UseUbuntuOcr && value.OcrBridgeToken.Length<32) throw new InvalidOperationException("Paste the local OCR bridge token (at least 32 characters).");
                 if(startSchedule) { _=TrayApp.FirstRun(value,DateTimeOffset.Now);value.Validate(false); }
                 else if(value.EnableUpload) _=UploadClient.BaseUri(value);
                 using var key=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");

@@ -51,6 +51,19 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
         Front(window); var image=Path.Combine(Settings.Root,"ocr-current.png");
         Native.Screenshot((IntPtr)window.Current.NativeWindowHandle,image);
         try {
+            if(settings.UseUbuntuOcr) {
+                using var client=new System.Net.Http.HttpClient(new System.Net.Http.HttpClientHandler {UseProxy=false}) {Timeout=TimeSpan.FromSeconds(25)};
+                using var request=new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post,"http://127.0.0.1:17863/ocr");
+                request.Headers.Add("X-OCR-Token",settings.OcrBridgeToken);
+                request.Content=new System.Net.Http.ByteArrayContent(File.ReadAllBytes(image));
+                request.Content.Headers.ContentType=new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+                try {
+                    using var response=client.SendAsync(request,cancel).GetAwaiter().GetResult();
+                    if(!response.IsSuccessStatusCode) throw new InvalidOperationException($"Ubuntu OCR returned {(int)response.StatusCode}. Check the bridge token and Tesseract installation.");
+                    var json=response.Content.ReadAsStringAsync(cancel).GetAwaiter().GetResult();
+                    return JsonSerializer.Deserialize<OcrLine[]>(json) ?? [];
+                } catch(System.Net.Http.HttpRequestException e) {throw new InvalidOperationException("Ubuntu OCR bridge is unavailable. Start ubuntu/ocr_bridge.py on the same computer.",e);}
+            }
             var start=new ProcessStartInfo("powershell.exe") { UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=System.Text.Encoding.UTF8 };
             foreach(var argument in new[]{"-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass","-File",Path.Combine(AppContext.BaseDirectory,"ocr.ps1"),"-ImagePath",image,"-Language",settings.OcrLanguage}) start.ArgumentList.Add(argument);
             using var p=Process.Start(start)!; var output=p.StandardOutput.ReadToEndAsync(); var errors=p.StandardError.ReadToEndAsync();

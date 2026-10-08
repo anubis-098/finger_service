@@ -16,6 +16,8 @@ public sealed class Settings {
     public int DownloadTimeoutSeconds { get; set; } = 600;
     public DateTime? ScheduleStartAt { get; set; }
     public string OcrLanguage { get; set; } = "th";
+    public bool UseUbuntuOcr { get; set; }
+    public string OcrBridgeToken { get; set; } = "";
     public static readonly string Root = Environment.GetEnvironmentVariable("CJ_FINGER_SERVICE_DATA") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CJFingerService");
     public static readonly string ConfigPath = Path.Combine(Root, "settings.json");
     public static string Protect(string value) => value.Length == 0 ? "" : Convert.ToBase64String(ProtectedData.Protect(Encoding.UTF8.GetBytes(value), null, DataProtectionScope.CurrentUser));

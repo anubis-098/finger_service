@@ -6,3 +6,6 @@ $zip=Join-Path $OutputDirectory 'CJFingerService-win-x64.zip'
 Compress-Archive -LiteralPath $files -DestinationPath $zip -Force
 (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash | Set-Content -LiteralPath (Join-Path $OutputDirectory 'SHA256.txt')
 Write-Output "Release asset: $zip"
+$ubuntuZip=Join-Path $OutputDirectory 'CJFingerService-UbuntuOCR.zip'
+Compress-Archive -LiteralPath (Join-Path $OutputDirectory 'ubuntu') -DestinationPath $ubuntuZip -Force
+(Get-FileHash -LiteralPath $ubuntuZip -Algorithm SHA256).Hash | Set-Content -LiteralPath (Join-Path $OutputDirectory 'UbuntuOCR-SHA256.txt')
