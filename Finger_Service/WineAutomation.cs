@@ -214,8 +214,8 @@ internal sealed class WineExportAutomation(Settings settings,Action<string> stag
         SetDate(dates[1],today);
         var folder=Controls(main,"edit").Where(e=>e.IsEnabled && !e.IsPassword && !Native.ReadOnlyEdit(e.Handle)).OrderByDescending(e=>e.Current.BoundingRectangle.Top).FirstOrDefault();
         if(folder==null || folder.Current.BoundingRectangle.Top < main.Current.BoundingRectangle.Top+main.Current.BoundingRectangle.Height*.7) throw new InvalidOperationException("Cannot locate export directory input.");
-        if(!string.Equals(folder.Name,settings.ExportDirectory,StringComparison.OrdinalIgnoreCase)) SetValue(main,folder,settings.ExportDirectory);
-        Report("save_directory");
+        var directoryChanged=!string.Equals(folder.Name,settings.ExportDirectory,StringComparison.OrdinalIgnoreCase);
+        if(directoryChanged) SetValue(main,folder,settings.ExportDirectory);
         void SaveFolder() { Click(main,"\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e04\u0e48\u0e32");Delay(500); }
         void SaveDirectory() {
         SaveFolder();
@@ -229,7 +229,7 @@ internal sealed class WineExportAutomation(Settings settings,Action<string> stag
             return main.Current.IsEnabled?main:null;
         },"save directory confirmation",10,()=> {if(main.Current.IsEnabled)SaveFolder();});
         }
-        SaveDirectory();
+        if(directoryChanged) { Report("save_directory");SaveDirectory(); }
         Report("download");
         var mainHandle=(IntPtr)main.Current.NativeWindowHandle;
         Native.DownloadSnapshot ReadDownload() {
@@ -265,7 +265,7 @@ internal sealed class WineExportAutomation(Settings settings,Action<string> stag
         },"fresh completed download (Thai/English status or matching prepared counts)",settings.DownloadTimeoutSeconds,()=> {
             var snapshot=ReadDownload();
             // Never restart a download that has shown activity: the real exporter may keep buttons enabled.
-            if(!observedActivity && snapshot.Responsive && snapshot.DownloadEnabled==true) {SaveDirectory();previous=ReadDownload();Download();}
+            if(!observedActivity && snapshot.Responsive && snapshot.DownloadEnabled==true) {previous=ReadDownload();Download();}
             else Report("download: still waiting for the active download; no duplicate click sent");
         });
         Report("export");

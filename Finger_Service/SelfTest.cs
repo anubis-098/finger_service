@@ -102,7 +102,12 @@ internal static class SelfTest {
             if(File.Exists(Path.Combine(Settings.Root,"early-export.txt")))throw new Exception("Export clicked before download completion.");
             if(Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_RETRY")!="1" && File.ReadAllText(Path.Combine(Settings.Root,"fixture-download-count.txt"))!="1")throw new Exception("Active download was restarted.");
             if(!content.Contains(today.AddDays(-3).ToString("yyyyMMdd")) || !content.Contains(today.ToString("yyyyMMdd"))) throw new Exception("Date range mismatch");
-            if(!stages.Where(s=>!s.StartsWith("Retry ") && !s.StartsWith("download:")).SequenceEqual(new[]{"login","select_dates","save_directory","download","export"})) throw new Exception("Unexpected stage order");
+            var folderChanged=Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_FOLDER_CHANGE")=="1";
+            var saveCountPath=Path.Combine(Settings.Root,"fixture-folder-save-count.txt");
+            var saveCount=File.Exists(saveCountPath)?int.Parse(File.ReadAllText(saveCountPath)):0;
+            if(saveCount!=(folderChanged?1:0))throw new Exception("Directory settings were saved unnecessarily or were not saved after a change.");
+            var expected=folderChanged?new[]{"login","select_dates","save_directory","download","export"}:new[]{"login","select_dates","download","export"};
+            if(!stages.Where(s=>!s.StartsWith("Retry ") && !s.StartsWith("download:")).SequenceEqual(expected)) throw new Exception("Unexpected stage order");
             File.WriteAllText(report,$"PASS: {(settings.UseUbuntuOcr?"Wine native":"UI Automation")} login, session, 3-day dates, wait ready, TXT export and validation.\n"+file);
         } catch(Exception e) { File.WriteAllText(report,"FAIL: "+e); try { fixture.Refresh(); Native.Screenshot(fixture.MainWindowHandle,Path.Combine(Settings.Root,"fixture-failure.png")); } catch { } Environment.ExitCode=1; }
         finally { if(!fixture.HasExited) fixture.Kill(true); }

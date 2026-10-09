@@ -1,4 +1,4 @@
-# CJ Finger Service 1.4.4
+# CJ Finger Service 1.4.5
 
 Ubuntu / Xfce with Wine: see [local Tesseract OCR setup](ubuntu/README.md).
 Wine is detected automatically and uses native window controls plus local OCR,
@@ -40,7 +40,7 @@ never credential values. If Username cannot be verified, the macro stops instead
 of submitting uncertain input. Desktop unlock and equal privilege requirements
 still apply.
 
-Every export now clicks the target Save settings button, even when its folder already matches. Recognized Success confirmations are dismissed before download. The active-task window shows the current stage and offers Cancel and Exit. Double-click the tray icon to bring it back.
+Save settings only remembers the export directory. The macro clicks it only when changing the directory, before downloading. A matching directory is reused without saving it again. Download retries do not re-save settings. After fresh download completion, only "3. Save TXT" creates the export file. The macro waits for a new or changed, stable TXT in the configured folder before validating or uploading it. Recognized Success confirmations after directory changes are dismissed before download. The active-task window offers Cancel and Exit.
 
 A lost login-window click, directory confirmation, fresh-download wait and TXT export can be retried up to three attempts. Download retries use the configured timeout per attempt; export checks use 30 seconds per attempt. A download is clicked again only when no activity was observed and its button is enabled. Once activity begins, timeout retries keep waiting without restarting it, including when WEB8 leaves its buttons enabled. Export is not repeated if a new or changed file already exists. Focus activation is attempted three times. Unknown dialogs, persistently invalid credentials, locked desktops, invalid files and ambiguous multiple exports stop the task rather than being blindly acknowledged. A parent watchdog terminates a stuck worker even if a UI Automation call never returns.
 

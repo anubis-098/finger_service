@@ -11,6 +11,8 @@ internal sealed class DemoTarget:Forms.Form {
         var testRoot=Environment.GetEnvironmentVariable("CJ_FINGER_SERVICE_DATA");
         var folder=new Forms.TextBox { Left=40,Top=450,Width=450,Text=testRoot is not null?Path.Combine(testRoot,"exports"):Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"CJFingerDummy","exports") };
         Directory.CreateDirectory(folder.Text);
+        if(Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_FOLDER_CHANGE")=="1")folder.Text=Path.Combine(folder.Text,"previous-folder");
+        var savedFolder=folder.Text;
         var login=new Forms.Button { Text="1. \u0e25\u0e47\u0e2d\u0e01\u0e2d\u0e34\u0e19\u0e40\u0e02\u0e49\u0e32\u0e23\u0e30\u0e1a\u0e1a",Left=280,Top=55,Width=160 };
         var download=new Forms.Button { Text="2. \u0e14\u0e36\u0e07\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25",Left=325,Top=90,Width=110 };
         var export=new Forms.Button { Text="3. \u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e44\u0e1f\u0e25\u0e4c txt",Left=440,Top=90,Width=150,Enabled=false };
@@ -20,7 +22,7 @@ internal sealed class DemoTarget:Forms.Form {
         Controls.Add(new Forms.Label { Left=40,Top=70,AutoSize=true,Text="From                     To" });
         Controls.Add(new Forms.Label { Left=40,Top=427,AutoSize=true,Text="TXT export folder" });
         var session=false;
-        var folderSaved=false;
+        var folderSaves=0;
         var downloadAttempts=0;
         var exportAttempts=0;
         var complete=false;
@@ -73,7 +75,6 @@ internal sealed class DemoTarget:Forms.Form {
         };
         download.Click+=async(_,_)=> {
             if(!session) { output.Text="Please log in and use the session first."; return; }
-            if(!folderSaved) {output.Text="Save the export directory first.";return;}
             downloadAttempts++;
             if(Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_STALL")=="1" || (Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_RETRY")=="1" && downloadAttempts==1))return;
             if(from.Value.Date>to.Value.Date) { output.Text="From date must be on or before To date."; return; }
@@ -92,13 +93,14 @@ internal sealed class DemoTarget:Forms.Form {
             exportAttempts++;
             if(Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_RETRY")=="1" && exportAttempts==1)return;
             try {
-            Directory.CreateDirectory(folder.Text);
-            File.WriteAllText(Path.Combine(folder.Text,$"All-attlogd{DateTime.Now:yyyy-MM-ddHHmmssfff}.txt"),$"TEST01 {from.Value:yyyyMMdd} 2000\nTEST01 {to.Value:yyyyMMdd} 0500\n");
-            output.AppendText("\r\nTXT saved to: "+folder.Text);
+            Directory.CreateDirectory(savedFolder);
+            File.WriteAllText(Path.Combine(savedFolder,$"All-attlogd{DateTime.Now:yyyy-MM-ddHHmmssfff}.txt"),$"TEST01 {from.Value:yyyyMMdd} 2000\nTEST01 {to.Value:yyyyMMdd} 0500\n");
+            output.AppendText("\r\nTXT saved to: "+savedFolder);
             } catch(Exception ex) { output.Text="Export failed: "+ex.Message; }
         };
         save.Click+=(_,_)=> {
-            try { Directory.CreateDirectory(folder.Text);folderSaved=true; output.Text="Export folder ready: "+folder.Text;
+            try { Directory.CreateDirectory(folder.Text);savedFolder=folder.Text;folderSaves++; output.Text="Export folder ready: "+folder.Text;
+                if(testRoot is not null)File.WriteAllText(Path.Combine(testRoot,"fixture-folder-save-count.txt"),folderSaves.ToString());
                 Forms.MessageBox.Show(this,"Export directory saved.","Success",Forms.MessageBoxButtons.OK,Forms.MessageBoxIcon.Information);
             }
             catch(Exception ex) { output.Text="Invalid folder: "+ex.Message; }
