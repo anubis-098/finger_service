@@ -1,6 +1,12 @@
 namespace CJFingerService;
 internal static class DownloadProgressTests {
     internal static void Run() {
+        var unknown=DownloadProgress.Parse("count: 984");
+        if(!TaskStage.WaitReason(new("count: 984",true,true,true),unknown,true).Contains("not recognized"))throw new Exception("Missing completion reason not reported.");
+        var readyProgress=DownloadProgress.Parse("status: ready");
+        if(!TaskStage.WaitReason(new("",true,true,false),readyProgress,true).Contains("Save TXT button"))throw new Exception("Disabled save reason not reported.");
+        if(!TaskStage.WaitReason(new("",false,true,true),readyProgress,true).Contains("not responding"))throw new Exception("Unresponsive reason not reported.");
+        if(TaskStage.Describe("download: waiting").Code!="D04" || TaskStage.Describe("detail: E02|Waiting for TXT").Code!="E02")throw new Exception("Diagnostic stage IDs unstable.");
         void Check(string text,bool ready,bool busy=false,bool failed=false) {
             var result=DownloadProgress.Parse(text);
             if(result.Ready!=ready || result.Busy!=busy || result.Failed!=failed)throw new Exception("Download readiness parser mismatch.");

@@ -228,6 +228,7 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
         if(candidates.Length>1) throw new InvalidOperationException("Several export windows are running. Keep one instance only.");
         using var process=candidates.FirstOrDefault() ?? Process.Start(new ProcessStartInfo(settings.ProgramPath) { UseShellExecute=true,WorkingDirectory=Path.GetDirectoryName(settings.ProgramPath)!,WindowStyle=ProcessWindowStyle.Normal })!;
         processId=process.Id;
+        Report("detail: S01|Waiting for WEB8 main window");
         var main=Wait(()=>Window("Time Access Solution"),"export main window");
         if(settings.SkipLogin) {
             Report("skip_login");
@@ -297,9 +298,11 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
             bool? Enabled(string caption)=>buttons.FirstOrDefault(e=>Normalize(e.Current.Name)==Normalize(caption))?.Current.IsEnabled;
             return new(text,true,snapshot.DownloadEnabled ?? Enabled("2. \u0e14\u0e36\u0e07\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25"),snapshot.SaveEnabled ?? Enabled("3. \u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e44\u0e1f\u0e25\u0e4c txt"));
         }
+        Report("detail: D03|Reading WEB8 before clicking Download");
         var previous=ReadDownload();
         void Download() { Click(main,"2. \u0e14\u0e36\u0e07\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25"); }
         Download();
+        Report("download: Download clicked; waiting for the first WEB8 status read");
         var observedActivity=false;
         var watch=Stopwatch.StartNew();var nextReport=TimeSpan.Zero;
         DateTime? readyAt=null;string? readySignature=null;
@@ -313,7 +316,7 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
             if(!ready || readySignature!=signature){readyAt=null;readySignature=signature;}
             if(ready)readyAt ??=DateTime.UtcNow;
             if(watch.Elapsed>=nextReport) {
-                Report($"download: waiting {watch.Elapsed.TotalSeconds:0}s; responsive={snapshot.Responsive}; rows={progress.Rows?.ToString() ?? "unknown"}; prepared={progress.Prepared?.ToString() ?? "unknown"}; ready={progress.Ready}; saveEnabled={snapshot.SaveEnabled?.ToString() ?? "unknown"}");
+                Report($"download: {TaskStage.WaitReason(snapshot,progress,observedActivity)}; waited={watch.Elapsed.TotalSeconds:0}s; responsive={snapshot.Responsive}; activity={observedActivity}; busy={progress.Busy}; rows={progress.Rows?.ToString() ?? "unknown"}; prepared={progress.Prepared?.ToString() ?? "unknown"}; ready={progress.Ready}; saveEnabled={snapshot.SaveEnabled?.ToString() ?? "unknown"}; downloadEnabled={snapshot.DownloadEnabled?.ToString() ?? "unknown"}");
                 nextReport=watch.Elapsed+TimeSpan.FromSeconds(5);
             }
             return readyAt.HasValue && DateTime.UtcNow-readyAt.Value>=TimeSpan.FromSeconds(2)?main:null;
@@ -326,12 +329,18 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
         Report("export");
         var before=Directory.GetFiles(settings.ExportDirectory,"*.txt").ToDictionary(p=>p,p=>new FileInfo(p).LastWriteTimeUtc);
         var exportStart=DateTime.UtcNow; Click(main,"3. \u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e44\u0e1f\u0e25\u0e4c txt");
+        Report("detail: E02|Save TXT clicked; waiting for a new or changed TXT file");
+        var fileWatch=Stopwatch.StartNew();var nextFileReport=TimeSpan.Zero;var lastFileStage="";
+        void FileStatus(string code,string message) {
+            if(code!=lastFileStage || fileWatch.Elapsed>=nextFileReport) {Report($"detail: {code}|{message}; waited={fileWatch.Elapsed.TotalSeconds:0}s");lastFileStage=code;nextFileReport=fileWatch.Elapsed+TimeSpan.FromSeconds(5);}
+        }
         string? stablePath=null; long stableLength=-1; DateTime stableSince=DateTime.UtcNow;
         var file=Wait(()=> {
             var files=Directory.GetFiles(settings.ExportDirectory,"*.txt").Select(p=>new FileInfo(p)).Where(f=>f.LastWriteTimeUtc>=exportStart.AddSeconds(-1) && (!before.TryGetValue(f.FullName,out var old)||old!=f.LastWriteTimeUtc)).ToArray();
             if(files.Length>1) throw new InvalidOperationException("Several TXT files changed; cannot identify the export safely.");
-            if(files.Length==0) return null;
+            if(files.Length==0) {FileStatus("E02","No new or changed TXT found in the configured export folder");return null;}
             var candidate=files[0];
+            FileStatus("E03",$"TXT detected ({candidate.Length} bytes); waiting for stable size and unlocked file");
             if(candidate.FullName!=stablePath || candidate.Length!=stableLength) { stablePath=candidate.FullName; stableLength=candidate.Length; stableSince=DateTime.UtcNow; return null; }
             if(candidate.Length==0 || DateTime.UtcNow-stableSince<TimeSpan.FromSeconds(3)) return null;
             try { using var stream=File.Open(candidate.FullName,FileMode.Open,FileAccess.Read,FileShare.None); return candidate.FullName; } catch(IOException) { return null; }
@@ -340,6 +349,7 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
             var changedFile=Directory.GetFiles(settings.ExportDirectory,"*.txt").Any(p=>!before.TryGetValue(p,out var old) || new FileInfo(p).LastWriteTimeUtc!=old);
             if(!changedFile && main.Current.IsEnabled)Click(main,"3. \u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e44\u0e1f\u0e25\u0e4c txt");
         });
+        Report("detail: V01|Validating exported TXT rows");
         ValidateFile(file); return file;
     }
     internal static void ValidateFile(string file) {

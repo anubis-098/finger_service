@@ -12,6 +12,7 @@ internal static class Program {
         Forms.Application.SetCompatibleTextRenderingDefault(false);
         if(args.Contains("--install-update")) { UpdateInstaller.Run(args); return; }
         if(args.Contains("--self-test")) { SelfTest.Run(); return; }
+        if(args.Contains("--status-test")) { SelfTest.StatusTest(); return; }
         if(args.Contains("--startup-test")) { SelfTest.StartupTest(); Environment.Exit(Environment.ExitCode); return; }
         if(args.Contains("--start-test")) { SelfTest.StartupTest(true); Environment.Exit(Environment.ExitCode); return; }
         if(args.Contains("--cancel-test")) { SelfTest.StartupTest(true,"Cancel"); Environment.Exit(Environment.ExitCode); return; }
@@ -49,6 +50,7 @@ internal static class Program {
                 File.WriteAllText(result,JsonSerializer.Serialize(new {ok=true,file="",message=$"Uploaded {sent} queued file(s)."})); return;
             }
             var export=Task.Run(()=>new ExportAutomation(settings,WriteStage,CancellationToken.None).Run()).GetAwaiter().GetResult();
+            WriteStage("detail: Q01|Saving validated TXT to the local upload queue");
             var run=Guid.NewGuid().ToString("N");
             var directory=Path.Combine(Settings.Root,"pending",run); Directory.CreateDirectory(directory);
             var copy=Path.Combine(directory,Path.GetFileName(export)); File.Copy(export,copy,false);

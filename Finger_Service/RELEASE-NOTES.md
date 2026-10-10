@@ -1,3 +1,13 @@
+## Finger Service 1.4.9
+
+- Bottom-right, non-activating task status window with step IDs, elapsed times, last-update timestamp and Copy status.
+- Download diagnostics identify unrecognized completion, row/count mismatch, disabled/missing Save TXT button, missing activity or an unresponsive WEB8 window.
+- Distinguish Save TXT click, waiting for new file, stable/unlocked file, validation, queue and upload.
+- Keep final success/failure/cancellation visible; add Show task status to the tray menu.
+- Readiness, retries and export safety checks are unchanged. English UI and both Windows/Wine automation paths are supported.
+
+Validation: build/self-tests, screenshot-verified status window and retained failure, Wine-native Dummy skip-login-to-TXT workflow on Windows. Actual Ubuntu/Wine display and real WEB8 completion still require testing on the user's machine.
+
 ## Finger Service 1.4.8
 
 - New recommended CJFingerService-win-x64-folder.zip: small EXE with runtime/DLLs alongside it. No single-file runtime decompression at startup; .NET installation is still unnecessary.

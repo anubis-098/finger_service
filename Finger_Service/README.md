@@ -1,3 +1,11 @@
+# Task status (1.4.9+)
+
+The active-task window opens at the bottom-right of the primary screen without taking keyboard focus. It shows a stable step code, elapsed time for the step/run, last worker update time and diagnostic details. Use **Copy status** to report a stall. Success, cancellation and failure remain visible until closed or the next run starts. Reopen a hidden window from the tray's **Show task status** menu. The window is not forced above WEB8, to avoid covering automation targets.
+
+Codes: S01 waiting for WEB8; L01 login / L00 skip login; D01 dates; D02 export folder; D03 download click; D04 waiting for completion; E01 Save TXT click; E02 waiting for a new TXT; E03 waiting for stable/unlocked TXT; V01 validation; Q01 local queue; U01 upload.
+
+D04 reports the exact unmet readiness condition plus response state, observed activity, loaded/prepared counts and Save/Download button state every five seconds. E02/E03 report file detection and stability. These diagnostics do not relax readiness checks or force an early export. service.log retains automation-stage history; worker-stage.txt contains the latest detail. No employee rows or credentials are included in these added diagnostic messages.
+
 # Folder package (1.4.8+)
 
 Download **CJFingerService-win-x64-folder.zip** for the recommended distribution. Extract the entire ZIP into a dedicated Finger Service folder and run CJFingerService.exe. Keep the EXE, DLLs, runtime files and package-manifest.json together. .NET remains included; no separate .NET installation is required. On Ubuntu, run the EXE with the same Wine prefix and user as before.

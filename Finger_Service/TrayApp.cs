@@ -23,6 +23,7 @@ internal sealed class TrayApp : Forms.ApplicationContext {
         var menu=new Forms.ContextMenuStrip(); status.Enabled=false;
         menu.Items.Add(status); menu.Items.Add(new Forms.ToolStripSeparator()); menu.Items.Add(pause);
         menu.Items.Add("Settings",null,(_,_)=>OpenSettings());
+        menu.Items.Add("Show task status",null,(_,_)=> {if(progress is {IsDisposed:false}) {progress.Show();progress.BringToFront();}else Forms.MessageBox.Show("No task status yet. Click Start to run a task.");});
         menu.Items.Add(cancelTask);cancelTask.Click+=(_,_)=>CancelActive();
         menu.Items.Add(new Forms.ToolStripMenuItem("Version "+Updater.VersionText) {Enabled=false});
         menu.Items.Add(checkUpdate); checkUpdate.Click+=async(_,_)=>await CheckUpdates(true);
@@ -84,7 +85,8 @@ internal sealed class TrayApp : Forms.ApplicationContext {
         timer.Stop(); running=true; next=DateTimeOffset.Now.AddMinutes(30); UpdateStatus("Running");
         activeTask=new CancellationTokenSource();cancelTask.Enabled=true;
         var stagePath=Path.Combine(Settings.Root,"worker-stage.txt");File.WriteAllText(stagePath,"Starting...");
-        progress=new TaskProgressForm(()=> {if(running)CancelActive();},Exit);progress.Show();
+        progress?.Dispose();progress=new TaskProgressForm(()=> {if(running)CancelActive();},Exit);progress.Show();
+        var outcome="Task stopped";var failed=true;
         try {
             settings=Settings.Load(); if(!uploadOnly) settings.Validate(false);
             var resultPath=Path.Combine(Settings.Root,"worker-result.json");
@@ -104,13 +106,13 @@ internal sealed class TrayApp : Forms.ApplicationContext {
             using var json=JsonDocument.Parse(File.ReadAllText(resultPath)); var message=json.RootElement.GetProperty("message").GetString()!;
             if(!json.RootElement.GetProperty("ok").GetBoolean()) throw new InvalidOperationException(message);
             Log("SUCCESS " + message + " " + json.RootElement.GetProperty("file").GetString());
-            UpdateStatus(message);
+            UpdateStatus(message);outcome=message;failed=false;
             tray.ShowBalloonTip(4000,"CJ Finger Service",message,Forms.ToolTipIcon.Info);
-        } catch(OperationCanceledException) {Log("CANCELLED by user");if(!exiting)UpdateStatus("Cancelled - schedule stopped");}
-        catch(Exception e) { Log("FAILED " + e.Message); if(!exiting){UpdateStatus("Failed · " + e.Message); tray.ShowBalloonTip(5000,"CJ Finger Service",e.Message,Forms.ToolTipIcon.Warning);} }
+        } catch(OperationCanceledException) {outcome="Cancelled - schedule stopped";Log("CANCELLED by user");if(!exiting)UpdateStatus("Cancelled - schedule stopped");}
+        catch(Exception e) { outcome=e.Message;Log("FAILED " + e.Message); if(!exiting){UpdateStatus("Failed · " + e.Message); tray.ShowBalloonTip(5000,"CJ Finger Service",e.Message,Forms.ToolTipIcon.Warning);} }
         finally {
             worker?.Dispose(); worker=null; running=false;activeTask?.Dispose();activeTask=null;
-            progress?.Close();progress?.Dispose();progress=null;
+            if(!exiting && progress is {IsDisposed:false})progress.Complete(outcome,failed);
             if(!exiting){cancelTask.Enabled=false;if(next<=DateTimeOffset.Now) next=DateTimeOffset.Now.AddMinutes(30);ArmTimer();tray.Text=scheduled?$"CJ Finger Service · next {next:HH:mm}":"CJ Finger Service · stopped";}
         }
     }

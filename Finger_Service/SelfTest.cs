@@ -1,5 +1,28 @@
 namespace CJFingerService;
 internal static class SelfTest {
+    public static void StatusTest() {
+        if(string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CJ_FINGER_SERVICE_DATA")))throw new InvalidOperationException("Isolated test data required.");
+        File.WriteAllText(Path.Combine(Settings.Root,"worker-stage.txt"),"download: Completion text not recognized; waited=125s; rows=984; prepared=unknown; ready=False; saveEnabled=True");
+        using var form=new TaskProgressForm(()=>throw new Exception("Completed status cancelled a task"),()=>{});
+        using var timer=new System.Windows.Forms.Timer {Interval=1500};
+        var ticks=0;
+        timer.Tick+=(_,_)=> {
+            try {
+                if(++ticks==1) {
+                    var area=System.Windows.Forms.Screen.PrimaryScreen!.WorkingArea;
+                    if(form.Right>area.Right || form.Bottom>area.Bottom || form.Left<area.Left)throw new Exception("Status window outside working area.");
+                    Native.Screenshot(form.Handle,Path.Combine(Settings.Root,"status-waiting.png"));
+                    form.Complete("Download timed out. No TXT was saved.",true);
+                } else {
+                    if(!form.Visible)throw new Exception("Failure status disappeared.");
+                    Native.Screenshot(form.Handle,Path.Combine(Settings.Root,"status-failed.png"));
+                    File.WriteAllText(Path.Combine(Settings.Root,"status-test-result.txt"),"PASS: bottom-right window and retained failure status.");
+                    timer.Stop();form.Close();
+                }
+            } catch(Exception e) {File.WriteAllText(Path.Combine(Settings.Root,"status-test-result.txt"),"FAIL: "+e);Environment.ExitCode=1;timer.Stop();form.Dispose();System.Windows.Forms.Application.ExitThread();}
+        };
+        form.Shown+=(_,_)=>timer.Start();System.Windows.Forms.Application.Run(form);
+    }
     public static void StartupTest(bool startMacro=false,string? control=null) {
         if(string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CJ_FINGER_SERVICE_DATA")))throw new InvalidOperationException("Set an isolated CJ_FINGER_SERVICE_DATA directory for the startup test.");
         var report=Path.Combine(Settings.Root,control is not null?control.ToLowerInvariant()+"-result.txt":startMacro?"start-result.txt":"startup-result.txt");
@@ -112,7 +135,7 @@ internal static class SelfTest {
             if(settings.SkipLogin && File.Exists(Path.Combine(Settings.Root,"fixture-login-opened.txt")))throw new Exception("Skip-login opened the login dialog.");
             var expected=folderChanged?new[]{"login","select_dates","save_directory","download","export"}:new[]{"login","select_dates","download","export"};
             if(settings.SkipLogin)expected[0]="skip_login";
-            if(!stages.Where(s=>!s.StartsWith("Retry ") && !s.StartsWith("download:")).SequenceEqual(expected)) throw new Exception("Unexpected stage order");
+            if(!stages.Where(s=>!s.StartsWith("Retry ") && !s.StartsWith("download:") && !s.StartsWith("detail:")).SequenceEqual(expected)) throw new Exception("Unexpected stage order");
             File.WriteAllText(report,$"PASS: {(settings.UseUbuntuOcr?"Wine native":"UI Automation")} {(settings.SkipLogin?"skip login":"login and session")}, 3-day dates, wait ready, TXT export and validation.\n"+file);
         } catch(Exception e) { File.WriteAllText(report,"FAIL: "+e); try { fixture.Refresh(); Native.Screenshot(fixture.MainWindowHandle,Path.Combine(Settings.Root,"fixture-failure.png")); } catch { } Environment.ExitCode=1; }
         finally { if(!fixture.HasExited) fixture.Kill(true); }
