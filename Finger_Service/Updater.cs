@@ -20,7 +20,9 @@ internal static class Updater {
         using var doc=JsonDocument.Parse(json); var root=doc.RootElement;
         if(root.GetProperty("draft").GetBoolean() || root.GetProperty("prerelease").GetBoolean()) return null;
         if(!Version.TryParse(root.GetProperty("tag_name").GetString()?.TrimStart('v'),out var version) || version.Build<0 || version<=new Version(VersionText)) return null;
-        var asset=root.GetProperty("assets").EnumerateArray().SingleOrDefault(a=>a.GetProperty("name").GetString()=="CJFingerService-win-x64.zip");
+        var assets=root.GetProperty("assets").EnumerateArray().ToArray();
+        var asset=assets.SingleOrDefault(a=>a.GetProperty("name").GetString()=="CJFingerService-win-x64-folder.zip");
+        if(asset.ValueKind==JsonValueKind.Undefined)asset=assets.SingleOrDefault(a=>a.GetProperty("name").GetString()=="CJFingerService-win-x64.zip");
         if(asset.ValueKind==JsonValueKind.Undefined) throw new InvalidOperationException("Release is missing CJFingerService-win-x64.zip.");
         var url=asset.GetProperty("browser_download_url").GetString()!;
         if(!Uri.TryCreate(url,UriKind.Absolute,out var uri) || uri.Scheme!="https" || uri.Host!="github.com" || !uri.AbsolutePath.StartsWith("/"+Repository+"/releases/download/",StringComparison.Ordinal)) throw new InvalidOperationException("Invalid release download URL.");
@@ -35,6 +37,23 @@ internal static class Updater {
     }
     internal static void Extract(string zip,string directory) {
         using var archive=ZipFile.OpenRead(zip);
+        var manifestEntry=archive.GetEntry(UpdatePackage.ManifestName);
+        if(manifestEntry is not null) {
+            if(manifestEntry.Length>1_000_000)throw new InvalidOperationException("Package manifest too large.");
+            using var reader=new StreamReader(manifestEntry.Open());
+            var manifest=UpdatePackage.Read(reader.ReadToEnd());
+            var expected=manifest.Files.ToDictionary(f=>f.Path,StringComparer.Ordinal);
+            if(archive.Entries.Count!=expected.Count+1 || archive.Entries.Select(e=>e.FullName).Distinct(StringComparer.OrdinalIgnoreCase).Count()!=archive.Entries.Count ||
+               archive.Entries.Any(e=>e.FullName!=UpdatePackage.ManifestName && (!expected.TryGetValue(e.FullName,out var entry) || entry.Size!=e.Length)))throw new InvalidOperationException("Folder package contents differ from manifest.");
+            Directory.CreateDirectory(directory);
+            foreach(var entry in archive.Entries) {
+                var destination=Path.Combine(directory,entry.FullName);
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                entry.ExtractToFile(destination);
+            }
+            _=UpdatePackage.InstalledFiles(directory);
+            return;
+        }
         if(archive.Entries.Count!=Files.Length || archive.Entries.Select(e=>e.FullName).Distinct(StringComparer.OrdinalIgnoreCase).Count()!=Files.Length || archive.Entries.Any(e=>!Files.Contains(e.FullName,StringComparer.Ordinal) || e.Length>300_000_000)) throw new InvalidOperationException("Unexpected files in update package.");
         Directory.CreateDirectory(directory);
         foreach(var entry in archive.Entries) entry.ExtractToFile(Path.Combine(directory,entry.FullName));
@@ -62,7 +81,9 @@ internal static class Updater {
         }
         progress?.Report((80,"Extracting update"));
         var extracted=Path.Combine(root,"files"); await Task.Run(()=>Extract(zip,extracted));
-        var version=FileVersionInfo.GetVersionInfo(Path.Combine(extracted,"CJFingerService.exe")).FileVersion;
+        var assembly=File.Exists(Path.Combine(extracted,UpdatePackage.ManifestName))?"CJFingerService.dll":"CJFingerService.exe";
+        if(assembly.EndsWith(".dll") && UpdatePackage.Read(File.ReadAllText(Path.Combine(extracted,UpdatePackage.ManifestName))).Version!=release.Version.ToString(3))throw new InvalidOperationException("Manifest version does not match release tag.");
+        var version=FileVersionInfo.GetVersionInfo(Path.Combine(extracted,assembly)).FileVersion;
         if(!Version.TryParse(version,out var packaged) || packaged.ToString(3)!=release.Version.ToString(3)) throw new InvalidOperationException("Package version does not match release tag.");
         return extracted;
     }

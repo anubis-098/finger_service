@@ -6,4 +6,5 @@ publish/
 publish-*/
 *.zip
 release/
+release-*/
 *.user

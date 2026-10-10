@@ -37,16 +37,24 @@ internal static class UpdateInstaller {
         if(string.Equals(Path.GetFullPath(source).TrimEnd(Path.DirectorySeparatorChar),Path.GetFullPath(target).TrimEnd(Path.DirectorySeparatorChar),StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Update source and target must differ.");
         var backup=Path.Combine(Path.GetDirectoryName(source.TrimEnd(Path.DirectorySeparatorChar))!,"backup");
         Directory.CreateDirectory(backup);
-        foreach(var name in Updater.Files) {
+        var files=UpdatePackage.InstalledFiles(source);
+        foreach(var name in files) {
             if(!File.Exists(Path.Combine(source,name)))throw new FileNotFoundException("Missing update file: "+name);
-            if(File.Exists(Path.Combine(target,name)))File.Copy(Path.Combine(target,name),Path.Combine(backup,name),false);
+            var destination=Path.Combine(target,name);
+            for(var current=destination;current is not null;current=Path.GetDirectoryName(current))
+                if((File.Exists(current) || Directory.Exists(current)) && (File.GetAttributes(current)&FileAttributes.ReparsePoint)!=0)throw new IOException("Update destination uses a symbolic link: "+name);
+            if(File.Exists(destination)) {
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(backup,name))!);
+                File.Copy(destination,Path.Combine(backup,name),false);
+            }
         }
         var changed=new List<string>();
         try {
-            foreach(var name in Updater.Files) {
+            foreach(var name in files) {
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(target,name))!);
                 changed.Add(name);
                 File.Copy(Path.Combine(source,name),Path.Combine(target,name),true);
-                progress?.Report(85+changed.Count*3);
+                progress?.Report(85+changed.Count*12/files.Length);
             }
         } catch(Exception failure) {
             var restoreErrors=new List<string>();

@@ -1,5 +1,9 @@
 # GitHub release maintenance
 
+From 1.4.8, release.ps1 publishes two Windows distributions: recommended CJFingerService-win-x64-folder.zip / Folder-SHA256.txt and the legacy four-file CJFingerService-win-x64.zip / SHA256.txt. It also publishes the separate Ubuntu OCR ZIP. New updater code prefers the folder asset; old updaters continue selecting the legacy asset. For an immediate transition from an old version, manually extract the whole folder ZIP once. Keep all runtime files next to the EXE.
+
+The folder manifest is generated only from a fresh publish staging directory. The client checks safe paths, required runtime files, total size, SHA-256 for every file and exact archive membership. Package updates leave user settings and unlisted files alone. CI runs self-tests against the actual folder ZIP before publication. The four-file rule below applies only to the legacy asset.
+
 Repository: https://github.com/anubis-098/finger_service
 
 1. Update `<Version>` in `FingerService.csproj`, using three numeric parts.

@@ -1,3 +1,13 @@
+## Finger Service 1.4.8
+
+- New recommended CJFingerService-win-x64-folder.zip: small EXE with runtime/DLLs alongside it. No single-file runtime decompression at startup; .NET installation is still unnecessary.
+- Limit runtime satellite resources to English. No claim of measured steady-state RAM/CPU reduction.
+- Updater prefers folder packages and validates manifest paths, sizes and per-file SHA-256, with multi-file backups and rollback. Keep the centered updater/progress window.
+- Retain CJFingerService-win-x64.zip as the four-file legacy distribution for older updaters. Users switching now must extract the full folder ZIP once; later updates use folder packages automatically.
+- Preserve settings, queued exports, Wine prefix and WEB8 registration.
+
+Validation: build and unit tests; packaged Windows integration verified the updater window, handshake, replacement, backup and restart with the multi-file runtime. Ubuntu/Wine requires validation on the user's machine.
+
 ## Finger Service 1.4.7
 
 - Replace PowerShell-based installation with a separate executable updater for Windows and Wine.

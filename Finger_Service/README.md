@@ -1,4 +1,14 @@
-# Updating on Ubuntu / Wine
+# Folder package (1.4.8+)
+
+Download **CJFingerService-win-x64-folder.zip** for the recommended distribution. Extract the entire ZIP into a dedicated Finger Service folder and run CJFingerService.exe. Keep the EXE, DLLs, runtime files and package-manifest.json together. .NET remains included; no separate .NET installation is required. On Ubuntu, run the EXE with the same Wine prefix and user as before.
+
+The EXE is approximately 159 KiB instead of a 66+ MiB compressed bundle. The runtime is stored alongside it, avoiding single-file decompression/extraction on startup. The whole folder is still approximately 155 MiB. Runtime localization is limited to English. This packaging change does not promise lower steady-state RAM/CPU; actual Ubuntu performance must be measured on the target machine.
+
+To switch from 1.4.7 or older, exit Finger Service and extract the entire folder ZIP into the existing dedicated Finger Service program directory (or a new directory and update your shortcut). Preserve the Wine prefix, app data and WEB8 files. Do not copy just the EXE. New clients prefer folder ZIPs for future updates. The original CJFingerService-win-x64.zip remains a four-file compatibility package for old updaters; installing it alone does not switch to the folder distribution. Ubuntu OCR is still distributed separately.
+
+Folder updates verify the GitHub ZIP checksum, a strict manifest of file names/sizes/hashes, and application version. Only package files are replaced, with backups and rollback. Old unreferenced files are retained instead of deleting potentially user-owned files.
+
+# Updating on Ubuntu / Wine (1.4.7 transition)
 
 Version 1.4.7 replaces the PowerShell installer with a separate Finger Service updater process. A centered window shows overall progress: download (0-75%), SHA-256 validation (78%), extraction (80%), helper startup (84%), installation (85-97%) and restart (98-100%). The tray app only exits after the helper confirms it is ready. Updates retain a backup and restore replaced files if copying fails. Settings, queued exports and WEB8 registration are not part of the update package.
 

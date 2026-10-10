@@ -28,6 +28,28 @@ internal static class UpdateTests {
         Directory.CreateDirectory(Path.Combine(target,Updater.Files[1])); // Fail after the EXE was replaced.
         rejected=false;try {UpdateInstaller.ReplaceFiles(staged,target);}catch(IOException){rejected=true;}
         if(!rejected || File.ReadAllText(Path.Combine(target,Updater.Files[0]))!="old")throw new Exception("Failed update did not restore original executable.");
-        File.WriteAllText(Path.Combine(Settings.Root,"update-test-result.txt"),"PASS: version checks, SHA-256 requirement, allowlist, traversal rejection, installation, backups, settings preservation and partial-copy rollback.");
+        var folderSource=Path.Combine(root,"folder-source");Directory.CreateDirectory(folderSource);
+        var names=UpdatePackage.Required.Append("fr/System.Windows.Forms.resources.dll").ToArray();
+        foreach(var name in names) {var path=Path.Combine(folderSource,name);Directory.CreateDirectory(Path.GetDirectoryName(path)!);File.WriteAllText(path,"fixture");}
+        var manifest=new UpdatePackage.Manifest(1,"99.0.0",names.Select(n=>new UpdatePackage.Entry(n,new FileInfo(Path.Combine(folderSource,n)).Length,Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(Path.Combine(folderSource,n)))))).ToArray());
+        File.WriteAllText(Path.Combine(folderSource,UpdatePackage.ManifestName),JsonSerializer.Serialize(manifest));
+        var folderZip=Path.Combine(root,"folder.zip");
+        using(var archive=ZipFile.Open(folderZip,ZipArchiveMode.Create))foreach(var name in names.Append(UpdatePackage.ManifestName))archive.CreateEntryFromFile(Path.Combine(folderSource,name),name);
+        var folderExtract=Path.Combine(root,"folder-extract");Updater.Extract(folderZip,folderExtract);
+        var folderTarget=Path.Combine(root,"folder-target");Directory.CreateDirectory(folderTarget);File.WriteAllText(Path.Combine(folderTarget,"settings.json"),"keep");
+        UpdateInstaller.ReplaceFiles(folderExtract,folderTarget);
+        if(!File.Exists(Path.Combine(folderTarget,names[^1])) || File.ReadAllText(Path.Combine(folderTarget,"settings.json"))!="keep")throw new Exception("Folder update lost resources or settings.");
+        foreach(var bad in new[]{"../bad.dll","C:/bad.dll","settings.json","appsettings.json","sub/../../bad.dll","CON.dll","sub\\bad.dll"})if(UpdatePackage.SafeName(bad))throw new Exception("Unsafe manifest name accepted: "+bad);
+        File.WriteAllText(Path.Combine(folderSource,names[0]),"corrupted");
+        rejected=false;try{UpdatePackage.InstalledFiles(folderSource);}catch(InvalidOperationException){rejected=true;}
+        if(!rejected)throw new Exception("Corrupt folder payload accepted.");
+        var combined=JsonSerializer.Serialize(new {tag_name="v99.0.0",draft=false,prerelease=false,assets=new[]{"CJFingerService-win-x64.zip","CJFingerService-win-x64-folder.zip"}.Select(name=>new{name,browser_download_url="https://github.com/anubis-098/finger_service/releases/download/v99.0.0/"+name,digest="sha256:"+new string('a',64)})});
+        if(Updater.ParseRelease(combined)?.Url.EndsWith("-folder.zip")!=true)throw new Exception("Folder release was not preferred.");
+        var package=Environment.GetEnvironmentVariable("CJ_FINGER_TEST_PACKAGE");
+        if(!string.IsNullOrWhiteSpace(package)) {
+            var actual=Path.Combine(root,"actual-package");Updater.Extract(package,actual);
+            if(UpdatePackage.InstalledFiles(actual).Length<UpdatePackage.Required.Length)throw new Exception("Actual folder package incomplete.");
+        }
+        File.WriteAllText(Path.Combine(Settings.Root,"update-test-result.txt"),"PASS: legacy/folder selection, checksums, manifest validation, path safety, nested resources, backup, settings preservation and rollback.");
     }
 }
