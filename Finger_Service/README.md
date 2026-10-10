@@ -1,3 +1,11 @@
+# Updating on Ubuntu / Wine
+
+Version 1.4.7 replaces the PowerShell installer with a separate Finger Service updater process. A centered window shows overall progress: download (0-75%), SHA-256 validation (78%), extraction (80%), helper startup (84%), installation (85-97%) and restart (98-100%). The tray app only exits after the helper confirms it is ready. Updates retain a backup and restore replaced files if copying fails. Settings, queued exports and WEB8 registration are not part of the update package.
+
+For installations running 1.4.6 or older where PowerShell cannot run under Wine, bootstrap once manually: stop Finger Service, download CJFingerService-win-x64.zip from the official release, extract its four files into the existing Finger Service program folder, replacing those four files only, and reopen with the same Wine prefix and user. Keep WEB8 files, its appsettings.json, the Wine prefix and Finger Service application data. Subsequent updates use the new installer. Ubuntu OCR bridge files are a separate package and are not changed by this update.
+
+If installation fails, inspect `updates/<run>/install.log` under the Finger Service application-data folder. If a helper cannot start, the tray application remains open and reports the failure. An installed update opens STOPPED; click Start to resume automation.
+
 # Skip login
 
 In Settings > Export, enable **Skip login (WEB8 already ready)** when the registered WEB8 installation can download directly. Save the setting, then click Start when ready. Username and Password are disabled and are not required in this mode. Existing saved credentials are retained.

@@ -14,6 +14,20 @@ internal static class UpdateTests {
         zip=Path.Combine(root,"bad.zip");using(var archive=ZipFile.Open(zip,ZipArchiveMode.Create)) {archive.CreateEntry("../outside.exe");}
         rejected=false;try{Updater.Extract(zip,Path.Combine(root,"bad"));}catch(InvalidOperationException){rejected=true;}
         if(!rejected || File.Exists(Path.Combine(root,"outside.exe"))) throw new Exception("Unsafe archive accepted.");
-        File.WriteAllText(Path.Combine(Settings.Root,"update-test-result.txt"),"PASS: newer/older/prerelease, SHA-256 requirement, package allowlist and traversal rejection.");
+        var installRoot=Path.Combine(root,"install");
+        var staged=Path.Combine(installRoot,"files");var target=Path.Combine(root,"target");
+        Directory.CreateDirectory(staged);Directory.CreateDirectory(target);
+        foreach(var name in Updater.Files) {File.WriteAllText(Path.Combine(staged,name),"new");File.WriteAllText(Path.Combine(target,name),"old");}
+        File.WriteAllText(Path.Combine(target,"settings.json"),"keep-settings");
+        UpdateInstaller.ReplaceFiles(staged,target);
+        if(Updater.Files.Any(name=>File.ReadAllText(Path.Combine(target,name))!="new" || File.ReadAllText(Path.Combine(installRoot,"backup",name))!="old") || File.ReadAllText(Path.Combine(target,"settings.json"))!="keep-settings")throw new Exception("Update replacement or backup failed.");
+        var failureRoot=Path.Combine(root,"failure");staged=Path.Combine(failureRoot,"files");target=Path.Combine(failureRoot,"target");
+        Directory.CreateDirectory(staged);Directory.CreateDirectory(target);
+        foreach(var name in Updater.Files)File.WriteAllText(Path.Combine(staged,name),"new");
+        File.WriteAllText(Path.Combine(target,Updater.Files[0]),"old");
+        Directory.CreateDirectory(Path.Combine(target,Updater.Files[1])); // Fail after the EXE was replaced.
+        rejected=false;try {UpdateInstaller.ReplaceFiles(staged,target);}catch(IOException){rejected=true;}
+        if(!rejected || File.ReadAllText(Path.Combine(target,Updater.Files[0]))!="old")throw new Exception("Failed update did not restore original executable.");
+        File.WriteAllText(Path.Combine(Settings.Root,"update-test-result.txt"),"PASS: version checks, SHA-256 requirement, allowlist, traversal rejection, installation, backups, settings preservation and partial-copy rollback.");
     }
 }

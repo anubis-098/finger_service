@@ -52,9 +52,12 @@ internal sealed class TrayApp : Forms.ApplicationContext {
             if(!interactive) {tray.ShowBalloonTip(5000,"Update available",$"Version {release.Version}. Use Check updates to install.",Forms.ToolTipIcon.Info);return;}
             if(Forms.MessageBox.Show($"Update {Updater.VersionText} → {release.Version}?\nThe app will restart. Settings and queued files are retained.","CJ Finger Service",Forms.MessageBoxButtons.YesNo)!=Forms.DialogResult.Yes) return;
             checkUpdate.Text="Downloading...";
-            var source=await Updater.Prepare(release);
+            using var updateProgress=new UpdateProgressForm();
+            updateProgress.Show();updateProgress.Activate();
+            var source=await Updater.Prepare(release,new Progress<(int Percent,string Message)>(p=>updateProgress.Report(p.Percent,p.Message)));
             if(exiting) return;
-            Updater.Install(source); Exit();
+            updateProgress.Report(84,"Starting update helper");
+            await Updater.Install(source); Exit();
         } catch(Exception e) {Log("UPDATE FAILED "+e.Message);if(interactive) Forms.MessageBox.Show(e.Message,"Update failed");}
         finally {updating=false;if(!exiting) {checkUpdate.Text="Check updates";checkUpdate.Enabled=true;ArmTimer();}}
     }

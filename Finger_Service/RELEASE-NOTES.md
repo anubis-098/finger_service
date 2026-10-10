@@ -1,3 +1,13 @@
+## Finger Service 1.4.7
+
+- Replace PowerShell-based installation with a separate executable updater for Windows and Wine.
+- Add centered update windows with overall percentage, SHA-256 verification, extraction, installation and restart status.
+- Wait for a helper-ready handshake before closing the tray app. Preserve backups and roll back file-copy failures.
+- Keep the strict four-file package allowlist, checksum checks, settings and queued exports.
+- Older Wine installations with a broken PowerShell updater need one manual ZIP replacement to reach this version.
+
+Validation: build and self-tests include successful replacement, backup preservation, untouched settings and rollback after a partial-copy failure. A packaged Windows integration test verified the dedicated window/handle, ready handshake, parent exit, installation and restart. Actual Ubuntu/Wine installation still requires verification on the user's machine.
+
 ## Finger Service 1.4.6
 
 - Add Settings > Export > Skip login (WEB8 already ready), saved per installation and off by default.

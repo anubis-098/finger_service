@@ -39,32 +39,47 @@ internal static class Updater {
         Directory.CreateDirectory(directory);
         foreach(var entry in archive.Entries) entry.ExtractToFile(Path.Combine(directory,entry.FullName));
     }
-    internal static async Task<string> Prepare(Release release) {
+    internal static async Task<string> Prepare(Release release,IProgress<(int Percent,string Message)>? progress=null) {
         var root=Path.Combine(Settings.Root,"updates",Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
         var zip=Path.Combine(root,"release.zip");
         using(var client=Client()) using(var response=await client.GetAsync(release.Url,HttpCompletionOption.ResponseHeadersRead)) {
             response.EnsureSuccessStatusCode();
+            var length=response.Content.Headers.ContentLength;
             await using var source=await response.Content.ReadAsStreamAsync(); await using var dest=File.Create(zip);
             var buffer=new byte[81920]; long total=0; int read;
             using var timeout=new CancellationTokenSource(TimeSpan.FromMinutes(5));
-            while((read=await source.ReadAsync(buffer,timeout.Token))>0) {total+=read;if(total>300_000_000) throw new InvalidOperationException("Update exceeds size limit.");await dest.WriteAsync(buffer.AsMemory(0,read),timeout.Token);}
+            int last=-1;
+            while((read=await source.ReadAsync(buffer,timeout.Token))>0) {
+                total+=read;if(total>300_000_000) throw new InvalidOperationException("Update exceeds size limit.");await dest.WriteAsync(buffer.AsMemory(0,read),timeout.Token);
+                var percent=length is >0?(int)Math.Min(75,total*75/length.Value):0;
+                if(percent!=last) { progress?.Report((percent,$"Downloading {total/1048576.0:0.0} MB"));last=percent; }
+            }
         }
+        progress?.Report((78,"Verifying SHA-256"));
         await using(var stream=File.OpenRead(zip)) {
             var actual=Convert.ToHexString(await SHA256.HashDataAsync(stream));
             if(!actual.Equals(release.Hash,StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Update checksum mismatch. Current version unchanged.");
         }
-        var extracted=Path.Combine(root,"files"); Extract(zip,extracted);
+        progress?.Report((80,"Extracting update"));
+        var extracted=Path.Combine(root,"files"); await Task.Run(()=>Extract(zip,extracted));
         var version=FileVersionInfo.GetVersionInfo(Path.Combine(extracted,"CJFingerService.exe")).FileVersion;
         if(!Version.TryParse(version,out var packaged) || packaged.ToString(3)!=release.Version.ToString(3)) throw new InvalidOperationException("Package version does not match release tag.");
         return extracted;
     }
-    internal static void Install(string source) {
+    internal static async Task Install(string source) {
         var target=Path.GetDirectoryName(Environment.ProcessPath!)!;
         var probe=Path.Combine(target,".update-"+Guid.NewGuid().ToString("N")); File.WriteAllText(probe,"");File.Delete(probe);
-        var helper=Path.Combine(Path.GetDirectoryName(source)!,"install.ps1");
-        File.Copy(Path.Combine(AppContext.BaseDirectory,"update.ps1"),helper);
-        var start=new ProcessStartInfo("powershell.exe") {UseShellExecute=false,CreateNoWindow=true};
-        foreach(var arg in new[]{"-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass","-File",helper,"-Source",source,"-Target",target,"-ParentId",Environment.ProcessId.ToString()}) start.ArgumentList.Add(arg);
+        var ready=Path.Combine(Path.GetDirectoryName(source)!,"installer-ready");
+        var start=new ProcessStartInfo(Path.Combine(source,"CJFingerService.exe")) {UseShellExecute=false,WorkingDirectory=source};
+        foreach(var arg in new[]{"--install-update",target,ready,Environment.ProcessId.ToString()}) start.ArgumentList.Add(arg);
         using var process=Process.Start(start) ?? throw new InvalidOperationException("Cannot start updater.");
+        var until=DateTime.UtcNow.AddSeconds(20);
+        while(DateTime.UtcNow<until) {
+            if(process.HasExited)throw new InvalidOperationException("Update helper exited before becoming ready. See install.log in "+Path.GetDirectoryName(source));
+            if(File.Exists(ready))return;
+            await Task.Delay(200);
+        }
+        if(!process.HasExited)process.Kill();
+        throw new TimeoutException("Update helper did not become ready. Current application remains open.");
     }
 }

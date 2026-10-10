@@ -10,6 +10,7 @@ internal static class Program {
         Forms.Application.SetHighDpiMode(Forms.HighDpiMode.PerMonitorV2);
         Forms.Application.EnableVisualStyles();
         Forms.Application.SetCompatibleTextRenderingDefault(false);
+        if(args.Contains("--install-update")) { UpdateInstaller.Run(args); return; }
         if(args.Contains("--self-test")) { SelfTest.Run(); return; }
         if(args.Contains("--startup-test")) { SelfTest.StartupTest(); Environment.Exit(Environment.ExitCode); return; }
         if(args.Contains("--start-test")) { SelfTest.StartupTest(true); Environment.Exit(Environment.ExitCode); return; }
