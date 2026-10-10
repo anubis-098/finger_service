@@ -229,6 +229,11 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
         using var process=candidates.FirstOrDefault() ?? Process.Start(new ProcessStartInfo(settings.ProgramPath) { UseShellExecute=true,WorkingDirectory=Path.GetDirectoryName(settings.ProgramPath)!,WindowStyle=ProcessWindowStyle.Normal })!;
         processId=process.Id;
         var main=Wait(()=>Window("Time Access Solution"),"export main window");
+        if(settings.SkipLogin) {
+            Report("skip_login");
+            if(Window("Login Session") is not null || !main.Current.IsEnabled)
+                throw new InvalidOperationException("SKIP_LOGIN_BLOCKED: close WEB8 dialogs and ensure it is ready to download, then retry.");
+        } else {
         Report("login");
         var login=Window("Login Session");
         if(login==null) {
@@ -252,6 +257,7 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
             readySince ??=DateTime.UtcNow;
             return DateTime.UtcNow-readySince>=TimeSpan.FromSeconds(2)?main:null;
         },"session closes and Success / OK confirmation",45);
+        }
         Front(main);
         Report("select_dates");
         var dates=main.FindAll(TreeScope.Descendants,Condition.TrueCondition).Cast<AutomationElement>().Where(e=>e.Current.ClassName.Contains("SysDateTimePick32") && e.Current.NativeWindowHandle!=0).OrderBy(e=>e.Current.BoundingRectangle.Left).ToArray();

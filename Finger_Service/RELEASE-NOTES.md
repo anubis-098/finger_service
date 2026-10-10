@@ -1,4 +1,14 @@
-﻿## Finger Service 1.4.5
+## Finger Service 1.4.6
+
+- Add Settings > Export > Skip login (WEB8 already ready), saved per installation and off by default.
+- Skip Login, credential entry, Use Session and its confirmation on both Windows and Wine. Continue with dates, download readiness and TXT export.
+- Disable credential inputs and skip credential validation/decryption in this mode, preserving stored credentials.
+- Stop clearly if a login or modal dialog is still open. No automatic login fallback and no changes to WEB8 licensing.
+- Regression fixture checks that no login dialog opens, settings survive save/load, missing credentials are accepted only in skip mode, dates match and a validated TXT is produced.
+
+Validation: build and self-tests; Wine-native backend Dummy export on Windows passed with skip login. Initial hidden-launch test could not acquire foreground focus; direct-launch retry passed. Actual Ubuntu/Wine WEB8 remains to be tested on the licensed machine.
+
+## Finger Service 1.4.5
 
 Corrects the distinction between saving the export directory and exporting scan data.
 

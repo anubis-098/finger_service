@@ -56,6 +56,9 @@ internal sealed class SettingsForm : Forms.Form {
         browse.Click+=(_,_)=> {using var picker=new Forms.FolderBrowserDialog {SelectedPath=folder.Text};if(picker.ShowDialog()==Forms.DialogResult.OK)folder.Text=picker.SelectedPath;};
         var user=Field(export,"Username",initial.Username);
         var password=Field(export,"Password",SafeRead(initial.PasswordProtected),true);
+        var skipLogin=new Forms.CheckBox {Text="Skip login (WEB8 already ready)",Checked=initial.SkipLogin,AutoSize=true}; Row(export,"Login",skipLogin);
+        void UpdateLoginFields() { user.Enabled=password.Enabled=!skipLogin.Checked; }
+        skipLogin.CheckedChanged+=(_,_)=>UpdateLoginFields(); UpdateLoginFields();
         var days=new Forms.NumericUpDown {Minimum=0,Maximum=31,Value=Math.Clamp(initial.LookbackDays,0,31)}; Row(export,"Lookback days",days);
         var timeout=new Forms.NumericUpDown {Minimum=30,Maximum=1800,Increment=30,Value=Math.Clamp(initial.DownloadTimeoutSeconds,30,1800)};Row(export,"Timeout (seconds)",timeout);
         var language=Field(export,"Target OCR language",initial.OcrLanguage);
@@ -88,6 +91,8 @@ internal sealed class SettingsForm : Forms.Form {
         void Commit(bool startSchedule) {
             var value=new Settings {ProgramPath=program.Text.Trim(),ExportDirectory=folder.Text.Trim(),Username=user.Text.Trim(),PasswordProtected=Settings.Protect(password.Text),TokenProtected=Settings.Protect(token.Text.Trim()),ServerUrl=server.Text.Trim(),EnableUpload=upload.Checked,AllowHttp=http.Checked,LookbackDays=(int)days.Value,DownloadTimeoutSeconds=(int)timeout.Value,OcrLanguage=language.Text.Trim(),ScheduleStartAt=startAt.Value};
             try {
+                value.SkipLogin=skipLogin.Checked;
+                if(skipLogin.Checked) value.PasswordProtected=initial.PasswordProtected;
                 value.UseUbuntuOcr=ubuntuOcr.Checked;
                 value.OcrBridgeToken=ocrToken.Text.Trim();
                 if(value.UseUbuntuOcr && value.OcrBridgeToken.Length<32) throw new InvalidOperationException("Paste the local OCR bridge token (at least 32 characters).");

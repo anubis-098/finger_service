@@ -21,7 +21,7 @@ internal sealed class DemoTarget:Forms.Form {
         Controls.Add(new Forms.Label { Left=12,Top=12,AutoSize=true,Text="DUMMY ONLY | Username: test-user | Password: test-password" });
         Controls.Add(new Forms.Label { Left=40,Top=70,AutoSize=true,Text="From                     To" });
         Controls.Add(new Forms.Label { Left=40,Top=427,AutoSize=true,Text="TXT export folder" });
-        var session=false;
+        var session=Environment.GetEnvironmentVariable("CJ_FINGER_TEST_SKIP_LOGIN")=="1";
         var folderSaves=0;
         var downloadAttempts=0;
         var exportAttempts=0;
@@ -29,6 +29,7 @@ internal sealed class DemoTarget:Forms.Form {
         var statusMode=Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_STATUS") ?? "english";
         var slowSeconds=int.TryParse(Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_DELAY"),out var delay)?Math.Clamp(delay,1,120):1;
         login.Click+=(_,_)=> {
+            File.WriteAllText(Path.Combine(Settings.Root,"fixture-login-opened.txt"),"1");
             using var dialog=new Forms.Form { Text="Login Session",Width=650,Height=500,StartPosition=Forms.FormStartPosition.CenterParent };
             var username=new Forms.TextBox { Left=200,Top=100,Width=220,AccessibleName="Username" };
             var password=new Forms.TextBox { Left=200,Top=150,Width=220,UseSystemPasswordChar=true,AccessibleName="Password" };

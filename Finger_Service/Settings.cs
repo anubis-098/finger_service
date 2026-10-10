@@ -7,6 +7,7 @@ public sealed class Settings {
     public string ProgramPath { get; set; } = "";
     public string ServerUrl { get; set; } = "";
     public bool EnableUpload { get; set; }
+    public bool SkipLogin { get; set; }
     public bool AllowHttp { get; set; }
     public string ExportDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
     public string Username { get; set; } = "getdata";
@@ -27,7 +28,7 @@ public sealed class Settings {
     public void Validate(bool upload = true) {
         if (!File.Exists(ProgramPath) || !ProgramPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Choose the WEB8 NEXT executable in Settings.");
         if (!Directory.Exists(ExportDirectory)) throw new InvalidOperationException("Export directory does not exist.");
-        if (string.IsNullOrWhiteSpace(Username) || Unprotect(PasswordProtected).Length == 0) throw new InvalidOperationException("Set the WEB8 username and password.");
+        if (!SkipLogin && (string.IsNullOrWhiteSpace(Username) || Unprotect(PasswordProtected).Length == 0)) throw new InvalidOperationException("Set the WEB8 username and password.");
         if (LookbackDays < 0 || LookbackDays > 31) throw new InvalidOperationException("Lookback must be 0–31 days.");
         if (EnableUpload) _ = UploadClient.BaseUri(this);
         if (upload && (!Uri.TryCreate(ServerUrl, UriKind.Absolute, out var uri) || (uri.Scheme != "https" && !(uri.Scheme == "http" && uri.IsLoopback)))) throw new InvalidOperationException("Use HTTPS for remote servers (HTTP is allowed only on localhost).");

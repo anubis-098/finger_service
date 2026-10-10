@@ -182,6 +182,11 @@ internal sealed class WineExportAutomation(Settings settings,Action<string> stag
         using var process=candidates.FirstOrDefault() ?? Process.Start(new ProcessStartInfo(settings.ProgramPath) { UseShellExecute=true,WorkingDirectory=Path.GetDirectoryName(settings.ProgramPath)!,WindowStyle=ProcessWindowStyle.Normal })!;
         processId=process.Id;
         var main=Wait(()=>Window("Time Access Solution"),"export main window");
+        if(settings.SkipLogin) {
+            Report("skip_login");
+            if(Window("Login Session") is not null || !main.Current.IsEnabled)
+                throw new InvalidOperationException("SKIP_LOGIN_BLOCKED: close WEB8 dialogs and ensure it is ready to download, then retry.");
+        } else {
         Report("login");
         var login=Window("Login Session");
         if(login==null) {
@@ -205,6 +210,7 @@ internal sealed class WineExportAutomation(Settings settings,Action<string> stag
             readySince ??=DateTime.UtcNow;
             return DateTime.UtcNow-readySince>=TimeSpan.FromSeconds(2)?main:null;
         },"session closes and Success / OK confirmation",45);
+        }
         Front(main);
         Report("select_dates");
         var dates=Controls(main,"SysDateTimePick32").OrderBy(e=>e.BoundingRectangle.Left).ToArray();

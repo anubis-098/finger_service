@@ -80,6 +80,9 @@ internal static class SelfTest {
         try {
             Thread.Sleep(2000);
             var settings=new Settings { ProgramPath=target,ExportDirectory=Path.Combine(Settings.Root,"exports"),Username="test-user",PasswordProtected=Settings.Protect("test-password"),LookbackDays=3,DownloadTimeoutSeconds=30 };
+            settings.SkipLogin=Environment.GetEnvironmentVariable("CJ_FINGER_TEST_SKIP_LOGIN")=="1";
+            if(settings.SkipLogin) { settings.Username="";settings.PasswordProtected="invalid-protected-value"; }
+            settings.Save();settings=Settings.Load();
             settings.UseUbuntuOcr=Environment.GetEnvironmentVariable("CJ_FINGER_TEST_WINE")=="1";
             var stages=new List<string>();
             string file;
@@ -106,13 +109,21 @@ internal static class SelfTest {
             var saveCountPath=Path.Combine(Settings.Root,"fixture-folder-save-count.txt");
             var saveCount=File.Exists(saveCountPath)?int.Parse(File.ReadAllText(saveCountPath)):0;
             if(saveCount!=(folderChanged?1:0))throw new Exception("Directory settings were saved unnecessarily or were not saved after a change.");
+            if(settings.SkipLogin && File.Exists(Path.Combine(Settings.Root,"fixture-login-opened.txt")))throw new Exception("Skip-login opened the login dialog.");
             var expected=folderChanged?new[]{"login","select_dates","save_directory","download","export"}:new[]{"login","select_dates","download","export"};
+            if(settings.SkipLogin)expected[0]="skip_login";
             if(!stages.Where(s=>!s.StartsWith("Retry ") && !s.StartsWith("download:")).SequenceEqual(expected)) throw new Exception("Unexpected stage order");
-            File.WriteAllText(report,$"PASS: {(settings.UseUbuntuOcr?"Wine native":"UI Automation")} login, session, 3-day dates, wait ready, TXT export and validation.\n"+file);
+            File.WriteAllText(report,$"PASS: {(settings.UseUbuntuOcr?"Wine native":"UI Automation")} {(settings.SkipLogin?"skip login":"login and session")}, 3-day dates, wait ready, TXT export and validation.\n"+file);
         } catch(Exception e) { File.WriteAllText(report,"FAIL: "+e); try { fixture.Refresh(); Native.Screenshot(fixture.MainWindowHandle,Path.Combine(Settings.Root,"fixture-failure.png")); } catch { } Environment.ExitCode=1; }
         finally { if(!fixture.HasExited) fixture.Kill(true); }
     }
     public static void Run() {
+        var skipSettings=new Settings {ProgramPath=Environment.ProcessPath!,ExportDirectory=Settings.Root,SkipLogin=true,Username="",PasswordProtected="invalid-protected-value"};
+        skipSettings.Validate(false); // Skipping must not decrypt unused credentials.
+        skipSettings.SkipLogin=false;
+        var credentialsRejected=false;
+        try { skipSettings.Validate(false); } catch(InvalidOperationException) { credentialsRejected=true; }
+        if(!credentialsRejected)throw new Exception("Normal login accepted missing credentials.");
         WineTests.Run();
         DownloadProgressTests.Run();
         UpdateTests.Run();

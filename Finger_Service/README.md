@@ -1,3 +1,9 @@
+# Skip login
+
+In Settings > Export, enable **Skip login (WEB8 already ready)** when the registered WEB8 installation can download directly. Save the setting, then click Start when ready. Username and Password are disabled and are not required in this mode. Existing saved credentials are retained.
+
+The macro selects the date range, downloads, waits for completion and exports TXT without clicking Login or Use Session. This applies to Windows and Wine. The option defaults to off for existing configurations. Close any open WEB8 login/error dialogs before starting. This setting does not activate WEB8 or change its Machine Key; WEB8 must already permit downloading. If downloading requires authentication, prepare WEB8 manually or disable Skip login. There is no automatic fallback to the login screen.
+
 # CJ Finger Service 1.4.5
 
 Ubuntu / Xfce with Wine: see [local Tesseract OCR setup](ubuntu/README.md).
