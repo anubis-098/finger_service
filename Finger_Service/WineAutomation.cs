@@ -7,12 +7,14 @@ using System.Text.RegularExpressions;
 namespace CJFingerService;
 
 internal sealed class WineExportAutomation(Settings settings,Action<string> stage,CancellationToken cancel) {
+    private ExportReset? reset;
+    internal void Complete(string file)=>(reset ?? throw new InvalidOperationException("No WEB8 session to reset.")).Complete(file,Report,cancel);
     private int processId;
     private static string Normalize(string value)=>Regex.Replace(value,@"\s+","").ToLowerInvariant();
     private void Delay(int ms) {if(cancel.WaitHandle.WaitOne(ms))cancel.ThrowIfCancellationRequested();}
     private void Report(string message) {
         stage(message);
-        File.AppendAllText(Path.Combine(Settings.Root,"service.log"),$"{DateTimeOffset.Now:O} WINE {message}\n");
+        File.AppendAllText(Path.Combine(Settings.Root,"service.log"),$"{ServiceClock.Now:O} WINE {message}\n");
     }
     private WineControl? Window(string title) {
         var handle=Native.FindWindow(processId,title);
@@ -181,6 +183,7 @@ internal sealed class WineExportAutomation(Settings settings,Action<string> stag
         if(candidates.Length>1) throw new InvalidOperationException("Several export windows are running. Keep one instance only.");
         using var process=candidates.FirstOrDefault() ?? Process.Start(new ProcessStartInfo(settings.ProgramPath) { UseShellExecute=true,WorkingDirectory=Path.GetDirectoryName(settings.ProgramPath)!,WindowStyle=ProcessWindowStyle.Normal })!;
         processId=process.Id;
+        reset=new ExportReset(process.Id,process.StartTime);
         Report("detail: S01|Waiting for WEB8 main window");
         var main=Wait(()=>Window("Time Access Solution"),"export main window");
         if(settings.SkipLogin) {
@@ -216,7 +219,7 @@ internal sealed class WineExportAutomation(Settings settings,Action<string> stag
         Report("select_dates");
         var dates=Controls(main,"SysDateTimePick32").OrderBy(e=>e.BoundingRectangle.Left).ToArray();
         if(dates.Length!=2) throw new InvalidOperationException("Expected two native date pickers. Run Diagnostics to inspect this program version.");
-        var today=TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTime.UtcNow,"SE Asia Standard Time").Date;
+        var today=ServiceClock.Now.Date;
         SetDate(dates[0],today.AddDays(-settings.LookbackDays));
         SetDate(dates[1],today);
         var folder=Controls(main,"edit").Where(e=>e.IsEnabled && !e.IsPassword && !Native.ReadOnlyEdit(e.Handle)).OrderByDescending(e=>e.Current.BoundingRectangle.Top).FirstOrDefault();

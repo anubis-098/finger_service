@@ -7,6 +7,9 @@ using Forms = System.Windows.Forms;
 
 namespace CJFingerService;
 internal sealed class ExportAutomation(Settings settings, Action<string> stage, CancellationToken cancel) {
+    private ExportReset? reset;
+    private WineExportAutomation? wine;
+    internal void Complete(string file) {if(wine is not null)wine.Complete(file);else (reset ?? throw new InvalidOperationException("No WEB8 session to reset.")).Complete(file,Report,cancel);}
     private int processId;
     private void Delay(int ms) { if (cancel.WaitHandle.WaitOne(ms)) cancel.ThrowIfCancellationRequested(); }
     private static string Normalize(string value) => Regex.Replace(value, @"\s+", "").ToLowerInvariant();
@@ -31,7 +34,7 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
     }
     private void Report(string message) {
         stage(message);
-        File.AppendAllText(Path.Combine(Settings.Root,"service.log"),$"{DateTimeOffset.Now:O} STAGE {message}\n");
+        File.AppendAllText(Path.Combine(Settings.Root,"service.log"),$"{ServiceClock.Now:O} STAGE {message}\n");
     }
     private void Front(AutomationElement window) {
         Native.AssertDesktop(); var handle=(IntPtr)window.Current.NativeWindowHandle;
@@ -221,13 +224,14 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
         throw new InvalidOperationException($"Date picker verification failed: received '{actual}', expected {date:yyyy-MM-dd}; culture {CultureInfo.CurrentCulture.Name}.");
     }
     public string Run() {
-        if(settings.UseUbuntuOcr || Native.IsWine) return new WineExportAutomation(settings,stage,cancel).Run();
+        if(settings.UseUbuntuOcr || Native.IsWine) {wine=new WineExportAutomation(settings,stage,cancel);return wine.Run();}
         settings.Validate(false); Native.AssertDesktop();
         var processName=Path.GetFileNameWithoutExtension(settings.ProgramPath);
         var candidates=Process.GetProcessesByName(processName).Where(p=> { try { return string.Equals(p.MainModule?.FileName,settings.ProgramPath,StringComparison.OrdinalIgnoreCase) && p.MainWindowTitle.Contains("Time Access Solution"); } catch { return false; } }).ToArray();
         if(candidates.Length>1) throw new InvalidOperationException("Several export windows are running. Keep one instance only.");
         using var process=candidates.FirstOrDefault() ?? Process.Start(new ProcessStartInfo(settings.ProgramPath) { UseShellExecute=true,WorkingDirectory=Path.GetDirectoryName(settings.ProgramPath)!,WindowStyle=ProcessWindowStyle.Normal })!;
         processId=process.Id;
+        reset=new ExportReset(process.Id,process.StartTime);
         Report("detail: S01|Waiting for WEB8 main window");
         var main=Wait(()=>Window("Time Access Solution"),"export main window");
         if(settings.SkipLogin) {
@@ -263,7 +267,7 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
         Report("select_dates");
         var dates=main.FindAll(TreeScope.Descendants,Condition.TrueCondition).Cast<AutomationElement>().Where(e=>e.Current.ClassName.Contains("SysDateTimePick32") && e.Current.NativeWindowHandle!=0).OrderBy(e=>e.Current.BoundingRectangle.Left).ToArray();
         if(dates.Length!=2) throw new InvalidOperationException("Expected two native date pickers. Run Diagnostics to inspect this program version.");
-        var today=TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTime.UtcNow,"SE Asia Standard Time").Date;
+        var today=ServiceClock.Now.Date;
         SetDate(dates[0],today.AddDays(-settings.LookbackDays));
         SetDate(dates[1],today);
         var folder=Controls(main,ControlType.Edit).OrderByDescending(e=>e.Current.BoundingRectangle.Top).FirstOrDefault();

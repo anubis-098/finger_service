@@ -39,7 +39,7 @@ internal sealed class TaskProgressForm:Forms.Form {
                 if(text.Length>0) {
                     var stage=TaskStage.Describe(text);
                     if(stage.Code!=code && !text.StartsWith("Retry")){code=stage.Code;stageTime.Restart();}
-                    last=text;updatedAt=File.GetLastWriteTime(path).ToString("HH:mm:ss");
+                    last=text;updatedAt=new DateTimeOffset(File.GetLastWriteTimeUtc(path)).ToOffset(ServiceClock.Offset).ToString("HH:mm:ss");
                     if(!text.StartsWith("Retry"))heading.Text=$"[{code}] {stage.Title}";
                     var display=last.Replace("; ",Environment.NewLine);
                     if(status.Text!=display)status.Text=display;

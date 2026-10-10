@@ -1,3 +1,9 @@
+# End-of-run reset and schedule (1.4.11+)
+
+After a validated TXT is copied to the local queue and server upload succeeds (when enabled), Finger Service confirms the matching WEB8 saved-file Success dialog with OK, then asks that same WEB8 process to close normally. X01/X02/X03 show confirmation, close and reset completion. Finger Service remains in the tray and starts WEB8 again next round. If upload fails, WEB8 stays open and the queued file remains available. Unrecognized dialogs or a blocked close produce a diagnostic instead of force-killing WEB8. No license or WEB8 settings are changed.
+
+Scheduling, date selection and Next display use Thailand UTC+07:00 independently of Wine's local timezone. Reopen Settings and select your desired Thai start time after updating. Repeats are 30 minutes from the start of a run; a run that exceeds that interval schedules the next run 30 minutes after it ends. Upload-only retries do not close unrelated WEB8 processes. The underlying system clock must still be correct; this change fixes timezone interpretation, not an incorrect UTC clock.
+
 # Task status (1.4.9+)
 
 The active-task window opens at the bottom-right of the primary screen without taking keyboard focus. It shows a stable step code, elapsed time for the step/run, last worker update time and diagnostic details. Use **Copy status** to report a stall. Success, cancellation and failure remain visible until closed or the next run starts. Reopen a hidden window from the tray's **Show task status** menu. The window is not forced above WEB8, to avoid covering automation targets.

@@ -28,7 +28,7 @@ internal static class SelfTest {
         var report=Path.Combine(Settings.Root,control is not null?control.ToLowerInvariant()+"-result.txt":startMacro?"start-result.txt":"startup-result.txt");
         // Isolated test root only: emulate a legacy installation that used to auto-start.
         Directory.CreateDirectory(Path.Combine(Settings.Root,"exports"));
-        var settings=new Settings {ProgramPath=Environment.ProcessPath!,ExportDirectory=Path.Combine(Settings.Root,"exports"),Username="test-user",PasswordProtected=Settings.Protect("test-password"),ScheduleStartAt=DateTime.Now.AddMinutes(-5)};
+        var settings=new Settings {ProgramPath=Environment.ProcessPath!,ExportDirectory=Path.Combine(Settings.Root,"exports"),Username="test-user",PasswordProtected=Settings.Protect("test-password"),ScheduleStartAt=ServiceClock.Now.DateTime.AddMinutes(-5)};
         var json=System.Text.Json.JsonSerializer.Serialize(settings);
         File.WriteAllText(Settings.ConfigPath,json[..^1]+",\"AutoStartSchedule\":true}");
         using var fixture=startMacro?System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) {Arguments="--demo-target",UseShellExecute=false}):null;
@@ -108,9 +108,10 @@ internal static class SelfTest {
             settings.Save();settings=Settings.Load();
             settings.UseUbuntuOcr=Environment.GetEnvironmentVariable("CJ_FINGER_TEST_WINE")=="1";
             var stages=new List<string>();
+            var automation=new ExportAutomation(settings,stage=> {stages.Add(stage);File.WriteAllText(Path.Combine(Settings.Root,"test-stage.txt"),stage);},CancellationToken.None);
             string file;
             try {
-                file=Task.Run(()=>new ExportAutomation(settings,stage=> { stages.Add(stage); File.WriteAllText(Path.Combine(Settings.Root,"test-stage.txt"),stage); },CancellationToken.None).Run()).GetAwaiter().GetResult();
+                file=Task.Run(()=>automation.Run()).GetAwaiter().GetResult();
             } catch(InvalidOperationException e) when(Environment.GetEnvironmentVariable("CJ_FINGER_DEMO_LOGIN")=="always-fail" && e.Message.StartsWith("LOGIN_FAILED:")) {
                 if(File.ReadAllText(Path.Combine(Settings.Root,"fixture-login-count.txt"))!="3" || stages.Contains("select_dates") || Directory.GetFiles(settings.ExportDirectory).Length!=0)
                     throw new Exception("Login failure did not stop after exactly three submissions.");
@@ -136,11 +137,24 @@ internal static class SelfTest {
             var expected=folderChanged?new[]{"login","select_dates","save_directory","download","export"}:new[]{"login","select_dates","download","export"};
             if(settings.SkipLogin)expected[0]="skip_login";
             if(!stages.Where(s=>!s.StartsWith("Retry ") && !s.StartsWith("download:") && !s.StartsWith("detail:")).SequenceEqual(expected)) throw new Exception("Unexpected stage order");
-            File.WriteAllText(report,$"PASS: {(settings.UseUbuntuOcr?"Wine native":"UI Automation")} {(settings.SkipLogin?"skip login":"login and session")}, 3-day dates, wait ready, TXT export and validation.\n"+file);
+            if(Environment.GetEnvironmentVariable("CJ_FINGER_TEST_RESET")=="1") {
+                if(fixture.HasExited)throw new Exception("WEB8 closed before completion was requested.");
+                Task.Run(()=>automation.Complete(file)).GetAwaiter().GetResult();
+                if(!fixture.WaitForExit(3000) || !File.Exists(Path.Combine(Settings.Root,"fixture-export-confirmed.txt")) || !File.Exists(file))throw new Exception("Export confirmation/reset failed or deleted the TXT.");
+            }
+            File.WriteAllText(report,$"PASS: {(settings.UseUbuntuOcr?"Wine native":"UI Automation")} {(settings.SkipLogin?"skip login":"login and session")}, 3-day dates, wait ready, TXT export and validation"+(Environment.GetEnvironmentVariable("CJ_FINGER_TEST_RESET")=="1"?", saved-popup OK and WEB8 exit":"")+".\n"+file);
         } catch(Exception e) { File.WriteAllText(report,"FAIL: "+e); try { fixture.Refresh(); Native.Screenshot(fixture.MainWindowHandle,Path.Combine(Settings.Root,"fixture-failure.png")); } catch { } Environment.ExitCode=1; }
         finally { if(!fixture.HasExited) fixture.Kill(true); }
     }
     public static void Run() {
+        var utc=new DateTimeOffset(2026,10,11,2,0,0,TimeSpan.Zero);
+        var selectedThai=new DateTime(2026,10,11,9,10,0,DateTimeKind.Unspecified);
+        if(TrayApp.FirstRun(new Settings {ScheduleStartAt=selectedThai},utc)!=utc.AddMinutes(10))throw new Exception("Thai schedule depends on OS timezone.");
+        if(ServiceClock.Scheduled(selectedThai).Offset!=TimeSpan.FromHours(7))throw new Exception("Wrong schedule offset.");
+        if(!ExportReset.IsSavedConfirmation("Success","TXT saved: C:/exports/scan.txt","scan.txt") ||
+           ExportReset.IsSavedConfirmation("Success","Export directory saved.","scan.txt") ||
+           ExportReset.IsSavedConfirmation("Success","TXT saved: other.txt","scan.txt") ||
+           ExportReset.IsSavedConfirmation("Error","TXT saved: scan.txt","scan.txt"))throw new Exception("Unsafe export confirmation match.");
         var skipSettings=new Settings {ProgramPath=Environment.ProcessPath!,ExportDirectory=Settings.Root,SkipLogin=true,Username="",PasswordProtected="invalid-protected-value"};
         skipSettings.Validate(false); // Skipping must not decrypt unused credentials.
         skipSettings.SkipLogin=false;
@@ -150,13 +164,13 @@ internal static class SelfTest {
         WineTests.Run();
         DownloadProgressTests.Run();
         UpdateTests.Run();
-        var now=DateTimeOffset.Now;
+        var now=ServiceClock.Now;
         foreach(var value in new[]{new Settings()}) {
             var blocked=false;try {_=TrayApp.FirstRun(value,now);}catch(InvalidOperationException){blocked=true;}
             if(!blocked)throw new Exception("Missing start time was accepted.");
         }
-        foreach(var date in new[]{now.LocalDateTime,now.LocalDateTime.AddMinutes(-1)})if(TrayApp.FirstRun(new Settings {ScheduleStartAt=date},now)!=now)throw new Exception("Current/past start should begin on explicit Start.");
-        if(TrayApp.FirstRun(new Settings {ScheduleStartAt=now.LocalDateTime.AddMinutes(10)},now)!=now.AddMinutes(10))throw new Exception("Future schedule calculation failed.");
+        foreach(var date in new[]{now.DateTime,now.DateTime.AddMinutes(-1)})if(TrayApp.FirstRun(new Settings {ScheduleStartAt=date},now)!=now)throw new Exception("Current/past start should begin on explicit Start.");
+        if(TrayApp.FirstRun(new Settings {ScheduleStartAt=now.DateTime.AddMinutes(10)},now)!=now.AddMinutes(10))throw new Exception("Future schedule calculation failed.");
         var directory=Path.Combine(Settings.Root,"self-test"); Directory.CreateDirectory(directory);
         var good=Path.Combine(directory,"good.txt"); File.WriteAllText(good,"BE000609\t20260929\t0500\nBE000609\t20260928\t1641\n");
         ExportAutomation.ValidateFile(good);

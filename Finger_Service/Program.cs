@@ -49,7 +49,8 @@ internal static class Program {
                 var sent=UploadClient.SendPending(settings).GetAwaiter().GetResult();
                 File.WriteAllText(result,JsonSerializer.Serialize(new {ok=true,file="",message=$"Uploaded {sent} queued file(s)."})); return;
             }
-            var export=Task.Run(()=>new ExportAutomation(settings,WriteStage,CancellationToken.None).Run()).GetAwaiter().GetResult();
+            var automation=new ExportAutomation(settings,WriteStage,CancellationToken.None);
+            var export=Task.Run(()=>automation.Run()).GetAwaiter().GetResult();
             WriteStage("detail: Q01|Saving validated TXT to the local upload queue");
             var run=Guid.NewGuid().ToString("N");
             var directory=Path.Combine(Settings.Root,"pending",run); Directory.CreateDirectory(directory);
@@ -62,6 +63,9 @@ internal static class Program {
                 var sent=UploadClient.SendPending(settings).GetAwaiter().GetResult();
                 message=$"Export saved; uploaded {sent} queued file(s) to server.";
             }
+            try {Task.Run(()=>automation.Complete(export)).GetAwaiter().GetResult();}
+            catch(Exception e) {throw new InvalidOperationException(message+" WEB8 reset failed: "+e.Message,e);}
+            message+=" WEB8 closed for the next run.";
             File.WriteAllText(result,JsonSerializer.Serialize(new { ok=true,file=copy,message }));
         } catch(Exception e) {
             // Never include UI dumps, passwords, tokens, or screenshots in logs.

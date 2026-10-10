@@ -81,8 +81,9 @@ internal sealed class SettingsForm : Forms.Form {
         Note(serverTab,"Create a service token on the website's Fingerprint logs page. Passwords and tokens are encrypted for this Windows account. Failed uploads remain queued.");
 
         var schedule=Tab("Schedule");
-        var startAt=new Forms.DateTimePicker {Format=Forms.DateTimePickerFormat.Custom,CustomFormat="yyyy-MM-dd HH:mm",ShowUpDown=true,Value=DateTime.Now};
+        var startAt=new Forms.DateTimePicker {Format=Forms.DateTimePickerFormat.Custom,CustomFormat="yyyy-MM-dd HH:mm",ShowUpDown=true,Value=ServiceClock.Now.DateTime};
         Row(schedule,"Start date/time",startAt);
+        Note(schedule,"Schedule timezone: "+ServiceClock.Zone);
         using var registry=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
         var startup=new Forms.CheckBox {Text="Open tray app when Windows starts (stopped)",AutoSize=true,Checked=registry?.GetValue("CJFingerService")!=null};Row(schedule,"",startup);
         Note(schedule,"Always opens STOPPED, including after an update or Windows restart.\n\nClick Start to begin now, or choose a future date/time to wait until then. If the selected time has already arrived, Start begins immediately. Runs repeat every 30 minutes. Save never starts automation.");
@@ -96,7 +97,7 @@ internal sealed class SettingsForm : Forms.Form {
                 value.UseUbuntuOcr=ubuntuOcr.Checked;
                 value.OcrBridgeToken=ocrToken.Text.Trim();
                 if(value.UseUbuntuOcr && value.OcrBridgeToken.Length<32) throw new InvalidOperationException("Paste the local OCR bridge token (at least 32 characters).");
-                if(startSchedule) { _=TrayApp.FirstRun(value,DateTimeOffset.Now);value.Validate(false); }
+                if(startSchedule) { _=TrayApp.FirstRun(value,ServiceClock.Now);value.Validate(false); }
                 else if(value.EnableUpload) _=UploadClient.BaseUri(value);
                 using var key=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
                 if(startup.Checked)key.SetValue("CJFingerService",$"\"{Environment.ProcessPath}\"");else key.DeleteValue("CJFingerService",false);

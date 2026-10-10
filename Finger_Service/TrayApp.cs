@@ -7,7 +7,7 @@ internal sealed class TrayApp : Forms.ApplicationContext {
     private readonly Forms.NotifyIcon tray;
     private readonly Forms.Timer timer=new() { Interval=1000 };
     private readonly Forms.ToolStripMenuItem status=new("Stopped"), pause=new("Set start time...");
-    private DateTimeOffset next=DateTimeOffset.Now;
+    private DateTimeOffset next=ServiceClock.Now;
     private bool scheduled=false, running;
     private bool updating;
     private bool exiting;
@@ -40,7 +40,7 @@ internal sealed class TrayApp : Forms.ApplicationContext {
             if(!scheduled) {OpenSettings();return;}
             scheduled=false; ArmTimer(); UpdateStatus("Schedule stopped");
         };
-        timer.Tick+=async(_,_)=> { timer.Stop(); if(scheduled && !running && DateTimeOffset.Now>=next) await Run(); else ArmTimer(); };
+        timer.Tick+=async(_,_)=> { timer.Stop(); if(scheduled && !running && ServiceClock.Now>=next) await Run(); else ArmTimer(); };
         UpdateStatus("Stopped - choose a start time and click Start");
         OpenSettings();
     }
@@ -64,25 +64,25 @@ internal sealed class TrayApp : Forms.ApplicationContext {
     }
     internal static DateTimeOffset FirstRun(Settings value,DateTimeOffset now) {
         if(value.ScheduleStartAt is not DateTime date) throw new InvalidOperationException("Choose a start date and time before clicking Start.");
-        var selected=new DateTimeOffset(date);
+        var selected=ServiceClock.Scheduled(date);
         return selected>now?selected:now;
     }
     private void ArmTimer() {
         timer.Stop();
         if(!scheduled || running || updating) return;
-        timer.Interval=(int)Math.Clamp(Math.Ceiling((next-DateTimeOffset.Now).TotalMilliseconds),1,int.MaxValue);
+        timer.Interval=(int)Math.Clamp(Math.Ceiling((next-ServiceClock.Now).TotalMilliseconds),1,int.MaxValue);
         timer.Start();
     }
     private void UpdateStatus(string message) {
         pause.Text=scheduled?"Stop schedule":"Set start time...";
-        status.Text=scheduled && !running?$"{message} · Next {next:dd/MM HH:mm}":message;
-        tray.Text=running?"CJ Finger Service · running":scheduled?$"CJ Finger Service · next {next:HH:mm}":"CJ Finger Service · paused";
+        status.Text=scheduled && !running?$"{message} · Next {next:dd/MM HH:mm} UTC+07":message;
+        tray.Text=running?"CJ Finger Service · running":scheduled?$"CJ Finger Service · next {next:HH:mm} UTC+07":"CJ Finger Service · paused";
     }
-    private void Log(string message) { File.AppendAllText(Path.Combine(Settings.Root,"service.log"),$"{DateTimeOffset.Now:O} {message}{Environment.NewLine}"); }
+    private void Log(string message) { File.AppendAllText(Path.Combine(Settings.Root,"service.log"),$"{ServiceClock.Now:O} {message}{Environment.NewLine}"); }
     private async Task Run(bool uploadOnly=false) {
         if(running || updating) return;
         Log(uploadOnly?"TASK START upload retry":"TASK START scheduled export");
-        timer.Stop(); running=true; next=DateTimeOffset.Now.AddMinutes(30); UpdateStatus("Running");
+        timer.Stop(); running=true; next=ServiceClock.Now.AddMinutes(30); UpdateStatus("Running");
         activeTask=new CancellationTokenSource();cancelTask.Enabled=true;
         var stagePath=Path.Combine(Settings.Root,"worker-stage.txt");File.WriteAllText(stagePath,"Starting...");
         progress?.Dispose();progress=new TaskProgressForm(()=> {if(running)CancelActive();},Exit);progress.Show();
@@ -113,7 +113,7 @@ internal sealed class TrayApp : Forms.ApplicationContext {
         finally {
             worker?.Dispose(); worker=null; running=false;activeTask?.Dispose();activeTask=null;
             if(!exiting && progress is {IsDisposed:false})progress.Complete(outcome,failed);
-            if(!exiting){cancelTask.Enabled=false;if(next<=DateTimeOffset.Now) next=DateTimeOffset.Now.AddMinutes(30);ArmTimer();tray.Text=scheduled?$"CJ Finger Service · next {next:HH:mm}":"CJ Finger Service · stopped";}
+            if(!exiting){cancelTask.Enabled=false;if(next<=ServiceClock.Now) next=ServiceClock.Now.AddMinutes(30);ArmTimer();tray.Text=scheduled?$"CJ Finger Service · next {next:HH:mm} UTC+07":"CJ Finger Service · stopped";}
         }
     }
     private void CancelActive() {
@@ -126,7 +126,7 @@ internal sealed class TrayApp : Forms.ApplicationContext {
         if(running) {progress?.Show();progress?.Activate();return;}
         using var form=new SettingsForm(settings);
         timer.Stop();
-        if(form.ShowDialog()==Forms.DialogResult.OK) { settings=form.Value; scheduled=form.StartRequested; if(scheduled) next=FirstRun(settings,DateTimeOffset.Now); UpdateStatus(scheduled?"Schedule started":"Settings saved - stopped"); }
+        if(form.ShowDialog()==Forms.DialogResult.OK) { settings=form.Value; scheduled=form.StartRequested; if(scheduled) next=FirstRun(settings,ServiceClock.Now); UpdateStatus(scheduled?"Schedule started":"Settings saved - stopped"); }
         ArmTimer();
     }
     private void Exit() {

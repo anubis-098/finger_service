@@ -1,3 +1,10 @@
+## Finger Service 1.4.11
+
+- After successful local queueing/upload, confirm the matching WEB8 TXT-saved Success popup and close the same process normally. Keep Finger Service running for the next scheduled round.
+- New X01/X02/X03 diagnostics; preserve WEB8 and queued files when upload fails. Refuse unknown dialogs and never force-kill WEB8 for reset.
+- Use Thailand UTC+07:00 for schedule inputs, Next display, date selection and task timestamps, independent of Wine's configured timezone.
+- Test schedule interpretation against UTC and test matching versus unrelated confirmation dialogs.
+
 ## Finger Service 1.4.10
 
 - Fix D04 waiting indefinitely when loaded rows equal prepared lines but WEB8's non-empty final status is not a recognized ready word.

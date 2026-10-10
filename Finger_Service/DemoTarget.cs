@@ -97,6 +97,11 @@ internal sealed class DemoTarget:Forms.Form {
             Directory.CreateDirectory(savedFolder);
             File.WriteAllText(Path.Combine(savedFolder,$"All-attlogd{DateTime.Now:yyyy-MM-ddHHmmssfff}.txt"),$"TEST01 {from.Value:yyyyMMdd} 2000\nTEST01 {to.Value:yyyyMMdd} 0500\n");
             output.AppendText("\r\nTXT saved to: "+savedFolder);
+            if(Environment.GetEnvironmentVariable("CJ_FINGER_TEST_RESET")=="1") {
+                var saved=Directory.GetFiles(savedFolder,"*.txt").OrderByDescending(File.GetLastWriteTimeUtc).First();
+                Forms.MessageBox.Show(this,"\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e44\u0e1f\u0e25\u0e4c\u0e41\u0e25\u0e49\u0e27:\n"+saved,"Success",Forms.MessageBoxButtons.OK,Forms.MessageBoxIcon.Information);
+                File.WriteAllText(Path.Combine(Settings.Root,"fixture-export-confirmed.txt"),"OK");
+            }
             } catch(Exception ex) { output.Text="Export failed: "+ex.Message; }
         };
         save.Click+=(_,_)=> {
