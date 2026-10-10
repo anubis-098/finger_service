@@ -18,6 +18,7 @@ internal static class TaskStage {
         if(!snapshot.Responsive)return "WEB8 window is not responding";
         if(!activity)return "No new download activity detected";
         if(progress.Busy)return "WEB8 still reports loading / processing";
+        if(progress.Blocked)return "WEB8 explicitly reports not ready, incomplete or cancelled";
         if(progress.Rows.HasValue && progress.Prepared.HasValue && progress.Rows!=progress.Prepared)return "Loaded rows and prepared lines do not match";
         if(!progress.Ready)return "Completion text not recognized; waiting for ready status or matching counts";
         if(snapshot.SaveEnabled!=true)return "Save TXT button is disabled or could not be detected";

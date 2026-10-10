@@ -14,6 +14,13 @@ internal static class DownloadProgressTests {
         Check("count : 984\r\nrows loaded: 984\r\nlines prepared: 984\r\nstatus: \u0e1e\u0e23\u0e49\u0e2d\u0e21",true);
         Check("status: ready",true);
         Check("rows loaded: 1,234\nlines prepared: 1,234",true);
+        Check("rows loaded: 1145\nlines prepared: 1145\nstatus: Export data available",true);
+        Check("rows loaded: 1145\nlines prepared: 1145\nstatus: not ready",false);
+        Check("rows loaded: 1145\nlines prepared: 1145\nstatus: cancelled",false);
+        Check("rows loaded: 1145\nlines prepared: 1145\nstatus: error",false,false,true);
+        Check("rows loaded: 1145\nlines prepared: 1145\nstatus: processing",false,true);
+        Check("rows loaded: 1145\nlines prepared: 1144\nstatus: Export data available",false);
+        Check("rows loaded: 1145\nstatus: Export data available",false);
         Check("rows loaded: 984\nlines prepared: 500\nstatus: ready",false);
         Check("rows loaded: 984\nlines prepared: 984\nstatus: loading",false,true);
         Check("status: ready\nstatus: processing",false,true);

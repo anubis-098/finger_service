@@ -1,3 +1,10 @@
+## Finger Service 1.4.10
+
+- Fix D04 waiting indefinitely when loaded rows equal prepared lines but WEB8's non-empty final status is not a recognized ready word.
+- Accept matching summary counts as completion evidence even with an unfamiliar final status. Still require fresh activity, responsive WEB8, Save TXT enabled and a stable ready state for two seconds.
+- Loading, errors, explicit not-ready/cancelled states and mismatched counts continue to block export. Diagnostics distinguish explicit blocked states.
+- Regression tests cover the reported 1145/1145 condition and incomplete/error cases; Dummy includes an unfamiliar final status.
+
 ## Finger Service 1.4.9
 
 - Bottom-right, non-activating task status window with step IDs, elapsed times, last-update timestamp and Copy status.

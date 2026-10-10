@@ -84,7 +84,7 @@ internal sealed class DemoTarget:Forms.Form {
             download.Enabled=statusMode=="counts"; export.Enabled=statusMode=="counts";
             output.Text=statusMode=="counts"?"rows loaded: 2\r\nlines prepared: 0":"status: loading";
             await Task.Delay(slowSeconds*1000);
-            var status=statusMode=="counts"?"":statusMode=="thai"?"status: \u0e1e\u0e23\u0e49\u0e2d\u0e21\r\n":"status: ready\r\n";
+            var status=statusMode=="counts"?"":statusMode=="unknown"?"status: Export data available\r\n":statusMode=="thai"?"status: \u0e1e\u0e23\u0e49\u0e2d\u0e21\r\n":"status: ready\r\n";
             output.Text=$"count: 2\r\nrows loaded: 2\r\nlines prepared: 2\r\n{status}TEST01 {from.Value:yyyyMMdd} 2000\r\nTEST01 {to.Value:yyyyMMdd} 0500";
             complete=true;
             download.Enabled=true; export.Enabled=true;
