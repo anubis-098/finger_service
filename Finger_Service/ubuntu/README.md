@@ -84,3 +84,7 @@ On Wine, exit Finger Service and replace the application files manually rather
 than relying on the Windows PowerShell updater.
 
 Engine reference: https://tesseract-ocr.github.io/tessdoc/Command-Line-Usage.html
+
+## WEB8 WebView2 launcher
+
+For WEB8 under Wine, see [WEB8-WEBVIEW2.md](WEB8-WEBVIEW2.md). The launcher assigns a writable, per-executable WebView2 profile and records startup output. Run it from the logged-in Xfce desktop session, not as a system service. This is a profile-contention workaround only; it does not add native WebView2 support to Wine.
