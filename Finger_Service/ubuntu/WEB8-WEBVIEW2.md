@@ -1,6 +1,6 @@
 # WEB8 WebView2 launcher for Ubuntu + Wine
 
-The launcher sets `WEBVIEW2_USER_DATA_FOLDER` to a writable, per-executable directory, records WEB8/Wine output, and prevents duplicate launches through this launcher from using the same profile. It does not modify WEB8 or its bundled WebView2 assemblies.
+The launcher sets `WEBVIEW2_USER_DATA_FOLDER` to a writable, per-executable directory, changes the working directory to the WEB8 executable folder (so relative config files can be found), records WEB8/Wine output, and prevents duplicate launches through this launcher from using the same profile. It does not modify WEB8 or its bundled WebView2 assemblies.
 
 ## Run it
 

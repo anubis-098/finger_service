@@ -74,10 +74,12 @@ PROFILE_WIN=$(winepath -w "$PROFILE_DIR") || {
 export WEBVIEW2_USER_DATA_FOLDER="$PROFILE_WIN"
 
 LOG_FILE="$LOG_DIR/$PROFILE_NAME-$(date +%Y%m%d-%H%M%S).log"
+APP_DIR=$(dirname -- "$APP")
 {
   echo "WEB8 WebView2 launcher"
   echo "Started: $(date --iso-8601=seconds)"
   echo "Executable: $APP"
+  echo "Working directory: $APP_DIR"
   echo "Wine prefix: $WINEPREFIX"
   echo "WebView2 profile: $PROFILE_WIN"
   echo "Wine: $($WINE_BIN --version 2>&1 | head -n 1)"
@@ -85,6 +87,10 @@ LOG_FILE="$LOG_DIR/$PROFILE_NAME-$(date +%Y%m%d-%H%M%S).log"
   echo "--- WEB8 output ---"
 } | tee -a "$LOG_FILE"
 
+cd -- "$APP_DIR" || {
+  echo "Could not enter the WEB8 executable directory: $APP_DIR" >&2
+  exit 2
+}
 "$WINE_BIN" "$APP" "$@" 2>&1 | tee -a "$LOG_FILE"
 APP_STATUS=${PIPESTATUS[0]}
 echo "--- WEB8 exited with status $APP_STATUS at $(date --iso-8601=seconds) ---" | tee -a "$LOG_FILE"
