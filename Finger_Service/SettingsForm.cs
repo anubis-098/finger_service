@@ -46,10 +46,10 @@ internal sealed class SettingsForm : Forms.Form {
         }
 
         var export=Tab("Export");
-        var program=Field(export,"WEB8 program",initial.ProgramPath);
+        var program=Field(export,"WEB8 / XFCE launcher",initial.ProgramPath);
         export.SetColumnSpan(program,1);
         var choose=new Forms.Button {Text="Browse",AutoSize=true};export.Controls.Add(choose,2,0);
-        choose.Click+=(_,_)=> {using var picker=new Forms.OpenFileDialog {Filter="Programs (*.exe)|*.exe"};if(picker.ShowDialog()==Forms.DialogResult.OK)program.Text=picker.FileName;};
+        choose.Click+=(_,_)=> {using var picker=new Forms.OpenFileDialog {Filter="WEB8 or XFCE launcher (*.exe;*.desktop)|*.exe;*.desktop|WEB8 executable (*.exe)|*.exe|XFCE launcher (*.desktop)|*.desktop|All files (*.*)|*.*",CheckFileExists=true};if(picker.ShowDialog()==Forms.DialogResult.OK)program.Text=picker.FileName;};
         var folder=Field(export,"TXT folder",initial.ExportDirectory);
         export.SetColumnSpan(folder,1);
         var browse=new Forms.Button {Text="Browse",AutoSize=true};export.Controls.Add(browse,2,1);
@@ -64,7 +64,7 @@ internal sealed class SettingsForm : Forms.Form {
         var language=Field(export,"Target OCR language",initial.OcrLanguage);
         var ubuntuOcr=new Forms.CheckBox {Text="Ubuntu / Wine (local Tesseract bridge)",Checked=initial.UseUbuntuOcr,AutoSize=true}; Row(export,"OCR engine",ubuntuOcr);
         var ocrToken=Field(export,"Local OCR token",initial.OcrBridgeToken,true);
-        Note(export,"Keep the Windows session unlocked. The target export application may come to the foreground.");
+        Note(export,"Select the WEB8 .exe or an XFCE .desktop launcher. For .desktop, keep Finger Service running in the same Wine prefix. Keep the desktop session unlocked.");
 
         var serverTab=Tab("Server");
         var server=Field(serverTab,"Website URL",initial.ServerUrl);

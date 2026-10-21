@@ -226,10 +226,11 @@ internal sealed class ExportAutomation(Settings settings, Action<string> stage, 
     public string Run() {
         if(settings.UseUbuntuOcr || Native.IsWine) {wine=new WineExportAutomation(settings,stage,cancel);return wine.Run();}
         settings.Validate(false); Native.AssertDesktop();
-        var processName=Path.GetFileNameWithoutExtension(settings.ProgramPath);
-        var candidates=Process.GetProcessesByName(processName).Where(p=> { try { return string.Equals(p.MainModule?.FileName,settings.ProgramPath,StringComparison.OrdinalIgnoreCase) && p.MainWindowTitle.Contains("Time Access Solution"); } catch { return false; } }).ToArray();
+        var target=Web8Target.Resolve(settings.ProgramPath);
+        var processName=Path.GetFileNameWithoutExtension(target.ExecutablePath);
+        var candidates=Process.GetProcessesByName(processName).Where(p=> { try { return string.Equals(p.MainModule?.FileName,target.ExecutablePath,StringComparison.OrdinalIgnoreCase) && p.MainWindowTitle.Contains("Time Access Solution"); } catch { return false; } }).ToArray();
         if(candidates.Length>1) throw new InvalidOperationException("Several export windows are running. Keep one instance only.");
-        using var process=candidates.FirstOrDefault() ?? Process.Start(new ProcessStartInfo(settings.ProgramPath) { UseShellExecute=true,WorkingDirectory=Path.GetDirectoryName(settings.ProgramPath)!,WindowStyle=ProcessWindowStyle.Normal })!;
+        using var process=candidates.FirstOrDefault() ?? Process.Start(new ProcessStartInfo(target.ExecutablePath) { UseShellExecute=true,WorkingDirectory=target.WorkingDirectory,WindowStyle=ProcessWindowStyle.Normal })!;
         processId=process.Id;
         reset=new ExportReset(process.Id,process.StartTime);
         Report("detail: S01|Waiting for WEB8 main window");

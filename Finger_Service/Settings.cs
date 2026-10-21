@@ -26,7 +26,7 @@ public sealed class Settings {
     public static Settings Load() { Directory.CreateDirectory(Root); return File.Exists(ConfigPath) ? JsonSerializer.Deserialize<Settings>(File.ReadAllText(ConfigPath)) ?? new() : new(); }
     public void Save() { Directory.CreateDirectory(Root); var temp = ConfigPath + ".tmp"; File.WriteAllText(temp, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true })); File.Move(temp, ConfigPath, true); }
     public void Validate(bool upload = true) {
-        if (!File.Exists(ProgramPath) || !ProgramPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Choose the WEB8 NEXT executable in Settings.");
+        _ = Web8Target.Resolve(ProgramPath);
         if (!Directory.Exists(ExportDirectory)) throw new InvalidOperationException("Export directory does not exist.");
         if (!SkipLogin && (string.IsNullOrWhiteSpace(Username) || Unprotect(PasswordProtected).Length == 0)) throw new InvalidOperationException("Set the WEB8 username and password.");
         if (LookbackDays < 0 || LookbackDays > 31) throw new InvalidOperationException("Lookback must be 0–31 days.");
