@@ -1,3 +1,11 @@
+## Finger Service 1.4.12
+
+- Select an XFCE `.desktop` launcher for WEB8 in Settings, or continue selecting the WEB8 `.exe` directly.
+- Resolve the WEB8 executable and working directory from the desktop entry; verify an explicitly configured `WINEPREFIX` matches the prefix running Finger Service before automation starts.
+- Keep the existing in-app update flow: **Check updates** downloads the signed-by-digest GitHub release asset, validates package contents and version, and installs through the dedicated updater.
+
+Validation: .NET 10 build passed. The `v1.4.12` GitHub Actions release workflow builds and publishes the folder package, legacy compatibility ZIP and Ubuntu OCR package.
+
 ## Finger Service 1.4.11
 
 - After successful local queueing/upload, confirm the matching WEB8 TXT-saved Success popup and close the same process normally. Keep Finger Service running for the next scheduled round.

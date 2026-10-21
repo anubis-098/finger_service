@@ -105,6 +105,8 @@ Source and releases: https://github.com/anubis-098/finger_service
 
 The app checks GitHub after startup and every 12 hours. Use **Check updates** to confirm downloading and installing a newer published release. Updates are blocked during an active task. The ZIP digest and executable version must match the GitHub release. Settings and pending files stay in place. After restarting, click Start again, or choose a future time before clicking Start.
 
+In **Settings > Export**, choose either the WEB8 `.exe` or its XFCE `.desktop` launcher. For `.desktop` entries, keep Finger Service running in the same Wine prefix named by the launcher; the app checks an explicit `WINEPREFIX` before starting automation. Select **Check updates** after a release is published to install the newest version from inside Finger Service.
+
 The first updater-capable release was 1.2.0. Earlier versions require one manual installation. Developer instructions are in `UPDATES.md` in the source repository.
 
 ## Requirements and limitations
